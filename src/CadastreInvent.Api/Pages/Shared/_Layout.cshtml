@@ -1,0 +1,143 @@
+﻿@using CadastreInvent.Shared.Application.Auth
+@using CadastreInvent.Api.Services
+@using System.Security.Claims
+@{
+    var currentSettings = ThemeSettingsManager.GetSettings();
+}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - @currentSettings.CompanyName</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Глобальный интерцептор 401 ошибки для AJAX/Fetch -->
+    <script>
+        (function() {
+            const originalFetch = window.fetch;
+            window.fetch = async function(...args) {
+                try {
+                    const response = await originalFetch.apply(this, args);
+                    if (response.status === 401) {
+                        if (!window.location.href.includes('/Login')) {
+                            window.location.href = '/Login?session_expired=true';
+                        }
+                    }
+                    return response;
+                } catch (error) {
+                    throw error;
+                }
+            };
+
+            const originalXhrOpen = XMLHttpRequest.prototype.open;
+            XMLHttpRequest.prototype.open = function(...args) {
+                this.addEventListener('load', function() {
+                    if (this.status === 401) {
+                        if (!window.location.href.includes('/Login')) {
+                            window.location.href = '/Login?session_expired=true';
+                        }
+                    }
+                });
+                return originalXhrOpen.apply(this, args);
+            };
+        })();
+    </script>
+</head>
+<body>
+    @if (User.Identity != null && User.Identity.IsAuthenticated)
+    {
+        <aside>
+            <div class="logo-container">
+                @if (!string.IsNullOrEmpty(currentSettings.LogoUrl))
+                {
+                    <img src="@currentSettings.LogoUrl" alt="Logo" style="width: 24px; height: 24px; object-fit: contain; margin-right: 12px; border-radius: 4px;" />
+                }
+                else
+                {
+                    <i data-lucide="map" style="margin-right: 12px; color: var(--accent);"></i>
+                }
+                <span style="font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="@currentSettings.CompanyName">@currentSettings.CompanyName</span>
+            </div>
+            <nav>
+                <a href="/Index" class="@(ViewData["ActivePage"]?.ToString() == "Dashboard" ? "active" : "")">
+                    <i data-lucide="layout-dashboard"></i> Главная
+                </a>
+                @if (User.HasClaim("Permission", Permissions.ViewGisMap))
+                {
+                    <a href="/Map" class="@(ViewData["ActivePage"]?.ToString() == "Map" ? "active" : "")">
+                        <i data-lucide="map-pinned"></i> Пространственные контуры
+                    </a>
+                }
+                <a href="/Registry" class="@(ViewData["ActivePage"]?.ToString() == "Registry" ? "active" : "")">
+                    <i data-lucide="database"></i> Реестр ЕГРН
+                </a>
+                <a href="/Valuation" class="@(ViewData["ActivePage"]?.ToString() == "Valuation" ? "active" : "")">
+                    <i data-lucide="brain-circuit"></i> Оценка CAMA
+                </a>
+                <a href="/Inspection" class="@(ViewData["ActivePage"]?.ToString() == "Inspection" ? "active" : "")">
+                    <i data-lucide="clipboard-check"></i> Инспекции
+                </a>
+
+                <a href="/Import" class="@(ViewData["ActivePage"]?.ToString() == "Import" ? "active" : "")" style="margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 16px;">
+                    <i data-lucide="file-up"></i> Сервис импорта данных
+                </a>
+                <a href="/Reports" class="@(ViewData["ActivePage"]?.ToString() == "Reports" ? "active" : "")">
+                    <i data-lucide="pie-chart"></i> Аналитика и Отчеты
+                </a>
+
+                <a href="/GlobalHelp" class="@(ViewData["ActivePage"]?.ToString() == "GlobalHelp" ? "active" : "")" style="margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 16px;">
+                    <i data-lucide="help-circle"></i> Справка платформы
+                </a>
+                @if (User.IsInRole(AppRoles.Admin))
+                {
+                    <a href="/Admin" class="@(ViewData["ActivePage"]?.ToString() == "Admin" ? "active" : "")" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 16px;">
+                        <i data-lucide="shield-check" style="color: #cbd5e1;"></i> Администрирование
+                    </a>
+                    <a href="/Archive" class="@(ViewData["ActivePage"]?.ToString() == "Archive" ? "active" : "")" style="color: #fca5a5;">
+                        <i data-lucide="archive"></i> Архив данных
+                    </a>
+                }
+            </nav>
+            <div class="sidebar-footer">
+                <form method="post" asp-page="/Login" asp-page-handler="Logout">
+                    <button type="submit" class="btn-logout" title="Выход из системы">
+                        <i data-lucide="log-out"></i> Выйти
+                    </button>
+                </form>
+            </div>
+        </aside>
+        <div class="layout-wrapper">
+            <header>
+                <div class="search-wrapper">
+                    <i data-lucide="search"></i>
+                    <input type="text" placeholder="Глобальный поиск по платформе..." class="search-bar" />
+                </div>
+                <div class="user-profile">
+                    <div class="user-avatar">
+                        @(User.Identity.Name?.Substring(0, 1).ToUpper() ?? "U")
+                    </div>
+                    <div class="user-info">
+                        <span class="user-name">@User.Identity.Name</span>
+                        <span class="user-role">
+                            @(User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value ?? "Сотрудник")
+                        </span>
+                    </div>
+                </div>
+            </header>
+            <main class="content-area">
+                @RenderBody()
+            </main>
+        </div>
+    }
+    else
+    {
+        @RenderBody()
+    }
+    <script>
+        lucide.createIcons();
+    </script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

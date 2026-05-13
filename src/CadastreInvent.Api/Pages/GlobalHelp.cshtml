@@ -1,0 +1,202 @@
+﻿@page
+@model CadastreInvent.Api.Pages.GlobalHelpModel
+@{
+    ViewData["Title"] = "Общая документация платформы";
+    ViewData["ActivePage"] = "GlobalHelp";
+}
+
+<link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+
+<style>
+    .help-layout {
+        display: flex;
+        gap: 32px;
+        align-items: flex-start;
+    }
+
+    .help-sidebar {
+        width: 300px;
+        background: white;
+        border: 1px solid var(--border-light);
+        border-radius: 16px;
+        padding: 20px;
+        position: sticky;
+        top: 24px;
+        box-shadow: var(--shadow-card);
+        flex-shrink: 0;
+    }
+
+        .help-sidebar h3 {
+            font-size: 1.1rem;
+            color: var(--text-main);
+            margin-top: 0;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+    .help-nav {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+        .help-nav li a {
+            display: block;
+            padding: 8px 12px;
+            color: var(--text-muted);
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: background 0.2s, color 0.2s;
+        }
+
+            .help-nav li a:hover {
+                background: #f1f5f9;
+                color: var(--text-main);
+            }
+
+    .help-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 32px;
+    }
+
+    .help-section {
+        background: white;
+        border: 1px solid var(--border-light);
+        border-radius: 16px;
+        padding: 32px;
+        box-shadow: var(--shadow-card);
+        scroll-margin-top: 24px;
+    }
+
+        .help-section h2 {
+            font-size: 1.5rem;
+            color: var(--text-main);
+            margin-top: 0;
+            margin-bottom: 16px;
+            border-bottom: 2px solid var(--border-light);
+            padding-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .help-section p {
+            font-size: 1rem;
+            color: #334155;
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+
+        .help-section ul {
+            padding-left: 24px;
+            color: #334155;
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+
+        .help-section li {
+            margin-bottom: 8px;
+        }
+
+    .help-alert {
+        background: #eff6ff;
+        border-left: 4px solid #3b82f6;
+        padding: 16px;
+        border-radius: 0 8px 8px 0;
+        margin-bottom: 16px;
+    }
+
+        .help-alert strong {
+            color: #1e3a8a;
+            display: block;
+            margin-bottom: 4px;
+        }
+</style>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Справочная документация платформы</h1>
+        <p class="page-subtitle">Глобальное руководство по навигации и функциональным модулям комплекса</p>
+    </div>
+</div>
+
+<div class="help-layout">
+    <aside class="help-sidebar">
+        <h3><i data-lucide="book" style="color: #3b82f6;"></i> Разделы системы</h3>
+        <ul class="help-nav">
+            <li><a href="#dashboard">Главная (Аналитический центр)</a></li>
+            <li><a href="#registry">ЕГРН (Реестр LADM)</a></li>
+            <li><a href="#valuation">Кадастровая оценка</a></li>
+            <li><a href="#inspection">Полевые проверки</a></li>
+            <li><a href="#map">Интерактивная карта</a></li>
+            <li><a href="#admin">Администрирование</a></li>
+        </ul>
+    </aside>
+
+    <div class="help-content">
+        <section id="dashboard" class="help-section">
+            <h2><i data-lucide="home" style="color: #0ea5e9;"></i> Главная (Аналитический центр)</h2>
+            <p>Стартовая страница платформы предназначена для мониторинга общего состояния системы. Здесь консолидируются количественные показатели зарегистрированных объектов, пространственных контуров и правообладателей.</p>
+            <ul>
+                <li><strong>Графическая аналитика:</strong> Визуальное распределение данных по категориям прав и формам контуров.</li>
+                <li><strong>Журнал транзакций:</strong> Хронологическая таблица, фиксирующая последние регистрационные и архивные операции в системе в реальном времени.</li>
+                <li><strong>Системная кастомизация (Только для администраторов):</strong> Опция персонализации визуального стиля интерфейса, включая загрузку официального логотипа и установку наименования организации.</li>
+            </ul>
+        </section>
+
+        <section id="registry" class="help-section">
+            <h2><i data-lucide="database" style="color: #10b981;"></i> ЕГРН (Реестр LADM)</h2>
+            <p>Центральный модуль платформы, реализующий международную модель администрирования земельных ресурсов (Land Administration Domain Model).</p>
+            <p>В данном разделе осуществляется строгий пошаговый учет. Процесс внесения данных разделен на вкладки, заполнение которых должно происходить слева направо: от пространственных координат и документов к конечному формированию права.</p>
+            <div class="help-alert">
+                <strong>Специализированная инструкция:</strong>
+                <p style="margin:0;">Для данного модуля предусмотрено детальное академическое руководство. Перейдите в раздел ЕГРН и нажмите кнопку "Справочное руководство" в верхнем меню.</p>
+            </div>
+        </section>
+
+        <section id="valuation" class="help-section">
+            <h2><i data-lucide="calculator" style="color: #f59e0b;"></i> Кадастровая оценка</h2>
+            <p>Модуль предназначен для расчета государственной стоимости объектов недвижимости. Функционал базируется на моделях массовой оценки.</p>
+            <ul>
+                <li>Интеграция характеристик объектов (материалы стен, год постройки, удаленность от инфраструктуры).</li>
+                <li>Анализ рыночных транзакций для корректировки ценообразующих коэффициентов.</li>
+                <li>Процедура фиксации утвержденной кадастровой стоимости и работа с официальными апелляциями от правообладателей.</li>
+            </ul>
+        </section>
+
+        <section id="inspection" class="help-section">
+            <h2><i data-lucide="clipboard-check" style="color: #8b5cf6;"></i> Полевые проверки</h2>
+            <p>Система маршрутизации и контроля работы инспекторов земельного надзора.</p>
+            <ul>
+                <li>Формирование инспекционных задач с привязкой к конкретным кадастровым контурам.</li>
+                <li>Сбор полевой информации: загрузка фотографий нарушений и внесение текстовых заключений.</li>
+                <li>Контроль исполнения предписаний и выявление фактов самовольного занятия территорий.</li>
+            </ul>
+        </section>
+
+        <section id="map" class="help-section">
+            <h2><i data-lucide="map" style="color: #06b6d4;"></i> Интерактивная карта</h2>
+            <p>Единый картографический интерфейс, объединяющий все зарегистрированные пространственные данные платформы на фоне спутниковых или топографических подложек.</p>
+            <p>Инструмент позволяет осуществлять визуальный поиск объектов, определять смежные границы и выявлять пространственные конфликты (наложения контуров).</p>
+        </section>
+
+        <section id="admin" class="help-section">
+            <h2><i data-lucide="users-cog" style="color: #64748b;"></i> Администрирование</h2>
+            <p>Ограниченный раздел, доступный исключительно уполномоченным администраторам безопасности.</p>
+            <ul>
+                <li>Управление учетными записями операторов реестра и инспекторов.</li>
+                <li>Детальная настройка ролевых политик доступа. Процедура выдачи и отзыва конкретных разрешений (на чтение, модификацию или удаление данных в архив).</li>
+                <li>Мониторинг соблюдения протоколов информационной безопасности.</li>
+            </ul>
+        </section>
+    </div>
+</div>

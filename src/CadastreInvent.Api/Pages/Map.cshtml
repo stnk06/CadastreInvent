@@ -1,0 +1,549 @@
+﻿@page
+@model CadastreInvent.Api.Pages.MapModel
+@{
+    ViewData["Title"] = "АРМ Пространственные контуры";
+    ViewData["ActivePage"] = "Map";
+}
+<link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/gis-map.css" asp-append-version="true" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+<style>
+    .gis-sidebar-split {
+        width: 450px;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        background: #ffffff;
+        border: 1px solid var(--border-light, #e2e8f0);
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: var(--shadow-card, 0 1px 3px rgba(0,0,0,0.1));
+    }
+
+    .gis-form-panel {
+        padding: 24px;
+        border-bottom: 1px solid var(--border-light, #e2e8f0);
+        max-height: 55%;
+        overflow-y: auto;
+    }
+
+    .gis-list-panel {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        background: #f8fafc;
+    }
+
+    .form-label {
+        display: block;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--text-main, #0f172a);
+        margin-bottom: 6px;
+    }
+
+    .form-control-sm {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--border-light, #e2e8f0);
+        border-radius: 8px;
+        font-size: 0.9rem;
+        outline: none;
+        transition: border-color 0.2s;
+        background: #f8fafc;
+        color: #0f172a;
+    }
+
+        .form-control-sm:focus {
+            background: #fff;
+            border-color: var(--primary, #10b981);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+
+        .form-control-sm:read-only {
+            background: #e2e8f0;
+            color: #475569;
+            cursor: not-allowed;
+        }
+
+    .form-row {
+        margin-bottom: 16px;
+    }
+
+    .input-group {
+        display: flex;
+        gap: 8px;
+    }
+
+    .toggle-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        margin-top: 8px;
+        margin-bottom: 16px;
+    }
+
+    .custom-checkbox {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--primary, #10b981);
+        cursor: pointer;
+    }
+
+    .toggle-label {
+        font-size: 0.85rem;
+        color: #334155;
+        cursor: pointer;
+        user-select: none;
+        line-height: 1.4;
+    }
+</style>
+<div class="page-header">
+    <div>
+        <h1 class="page-title">АРМ Пространственные контуры</h1>
+        <p class="page-subtitle">Визуализация, анализ и синхронная регистрация пространственных данных</p>
+    </div>
+</div>
+<div class="gis-container">
+    <aside class="gis-sidebar-split">
+        <div class="gis-form-panel">
+            <h2 id="form-title" style="font-size: 1.1rem; font-weight: 700; color: #0f172a; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="clipboard-list" style="color: var(--primary, #10b981);"></i> <span id="form-title-text">Регистрация объекта</span>
+            </h2>
+            <form id="registration-form" onsubmit="submitForm(event)">
+                <input type="hidden" id="input-edit-id" />
+                <div class="form-row">
+                    <label class="form-label">Адрес объекта (Поиск по карте)</label>
+                    <div class="input-group">
+                        <input type="text" id="input-address" class="form-control-sm" required placeholder="Введите адрес..." onkeydown="if(event.key === 'Enter') { event.preventDefault(); searchAddress(); }" />
+                        <button type="button" onclick="searchAddress()" class="btn-outline" style="padding: 10px; border-radius: 8px;">
+                            <i data-lucide="search" style="width: 18px; height: 18px; margin: 0;"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <label class="form-label">Принадлежность контура</label>
+                    <select id="input-type" class="form-control-sm" required>
+                        <option value="Parcel">Земельный участок</option>
+                        <option value="Building">Здание</option>
+                        <option value="Room">Помещение</option>
+                        <option value="Volume3D">Пространственный объем</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label class="form-label">Уникальный кадастровый номер</label>
+                    <div class="input-group">
+                        <input type="text" id="reg-cad-number" class="form-control-sm" required placeholder=" " />
+                        <button type="button" onclick="generateCadastralNumber()" class="btn-outline" style="padding: 10px; border-radius: 8px;">
+                            <i data-lucide="refresh-cw" style="width: 18px; height: 18px; margin: 0;"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <label class="form-label">Площадь (кв.м)</label>
+                    <input type="number" id="input-area" step="0.1" readonly class="form-control-sm" placeholder="Рассчитывается по контуру" />
+                </div>
+                <input type="hidden" id="input-wkt" required />
+
+                <div id="baunit-creation-row" class="toggle-row">
+                    <input type="checkbox" id="chk-create-baunit" class="custom-checkbox" checked />
+                    <label for="chk-create-baunit" class="toggle-label">Автоматически сформировать и связать базовый объект недвижимости в реестре</label>
+                </div>
+
+                <div id="status-box" style="display: none; padding: 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 500; margin-bottom: 16px;"></div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <button type="submit" id="btn-submit" class="btn-primary" style="width: 100%;">
+                        <i data-lucide="save"></i> Зарегистрировать контур
+                    </button>
+                    <button type="button" id="btn-cancel" onclick="resetToCreateMode()" class="btn-outline" style="display: none; width: 100%; border-color: #ef4444; color: #ef4444;">
+                        <i data-lucide="x"></i> Отменить редактирование
+                    </button>
+                </div>
+            </form>
+        </div>
+        <div class="gis-list-panel">
+            <div style="padding: 16px; border-bottom: 1px solid var(--border-light, #e2e8f0); background: #ffffff;">
+                <div class="gis-search-wrapper">
+                    <i data-lucide="search" style="color: #94a3b8; width: 18px;"></i>
+                    <input type="text" id="gis-search" class="gis-search-input" placeholder="Поиск по реестру..." onkeyup="filterGisList()" autocomplete="off" />
+                </div>
+            </div>
+            <div class="gis-list" id="gis-list-container"></div>
+        </div>
+    </aside>
+    <div class="gis-map-wrapper">
+        <div id="main-map"></div>
+    </div>
+</div>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.inputmask/5.0.8/jquery.inputmask.min.js"></script>
+<script src="~/js/registry-masks.js" asp-append-version="true"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script>
+    const typeConfig = {
+        'Parcel': { label: 'Земельный участок', color: '#10b981', icon: 'map' },
+        'Building': { label: 'Здание', color: '#f59e0b', icon: 'home' },
+        'Room': { label: 'Помещение', color: '#3b82f6', icon: 'box' },
+        'Volume3D': { label: 'Пространственный объем', color: '#8b5cf6', icon: 'layers' }
+    };
+    let map;
+    let drawnItems;
+    let registeredItems;
+    let polygonMap = new Map();
+    let spatialDataArray = [];
+    let searchMarker = null;
+    let currentlyEditingLayer = null;
+    document.addEventListener("DOMContentLoaded", function () {
+        initMap();
+        loadRegisteredUnits();
+        lucide.createIcons();
+    });
+    function initMap() {
+        const russiaBounds = [[41.1859, 19.6389], [81.8589, 190.0000]];
+        map = L.map('main-map', { maxBounds: russiaBounds, maxBoundsViscosity: 1.0, minZoom: 4 }).setView([55.7558, 37.6173], 13);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+        }).addTo(map);
+        drawnItems = new L.FeatureGroup();
+        registeredItems = new L.FeatureGroup();
+        map.addLayer(registeredItems);
+        map.addLayer(drawnItems);
+        const drawControl = new L.Control.Draw({
+            edit: { featureGroup: drawnItems, remove: true },
+            draw: {
+                polygon: { allowIntersection: false, shapeOptions: { color: '#3b82f6', weight: 3, fillOpacity: 0.4 } },
+                rectangle: { shapeOptions: { color: '#3b82f6', weight: 3 } },
+                polyline: false, circle: false, marker: false, circlemarker: false
+            }
+        });
+        map.addControl(drawControl);
+        map.on(L.Draw.Event.CREATED, function (event) {
+            if(currentlyEditingLayer) return;
+            drawnItems.clearLayers();
+            drawnItems.addLayer(event.layer);
+            processGeometry(event.layer);
+        });
+        map.on(L.Draw.Event.EDITED, function (event) {
+            event.layers.eachLayer(layer => processGeometry(layer));
+        });
+        map.on(L.Draw.Event.DELETED, function () {
+            resetToCreateMode();
+        });
+    }
+    function processGeometry(layer) {
+        const geojson = layer.toGeoJSON();
+        let coords = geojson.geometry.coordinates[0];
+        if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
+            coords.push(coords[0]);
+        }
+        const wkt = 'POLYGON((' + coords.map(c => c[0] + ' ' + c[1]).join(', ') + '))';
+        let area = 0;
+        if (L.GeometryUtil && L.GeometryUtil.geodesicArea) {
+            area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
+        } else {
+            area = calculateFallbackArea(coords);
+        }
+        document.getElementById('input-wkt').value = wkt;
+        document.getElementById('input-area').value = area.toFixed(2);
+        if (!document.getElementById('input-edit-id').value) {
+            const center = layer.getBounds().getCenter();
+            reverseGeocode(center.lat, center.lng);
+            generateCadastralNumber();
+        }
+    }
+    function calculateFallbackArea(coords) {
+        let area = 0;
+        if (coords.length > 2) {
+            for (let i = 0; i < coords.length - 1; i++) {
+                area += coords[i][0] * coords[i+1][1] - coords[i+1][0] * coords[i][1];
+            }
+            area = Math.abs(area) / 2;
+        }
+        return area * 10000000000;
+    }
+    function generateCadastralNumber() {
+        const input = document.getElementById('reg-cad-number');
+        if (!input.value || input.value.indexOf('_') !== -1) {
+            input.value = `32:28:${Math.floor(1000000 + Math.random() * 9000000)}:${Math.floor(1000 + Math.random() * 9000)}`;
+        }
+    }
+    async function reverseGeocode(lat, lon) {
+        try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+            const data = await response.json();
+            if (data && data.display_name) {
+                document.getElementById('input-address').value = data.display_name;
+            }
+        } catch (e) { }
+    }
+    async function searchAddress() {
+        const query = document.getElementById('input-address').value;
+        if (!query) return;
+        try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=ru`);
+            const data = await response.json();
+            if (data && data.length > 0) {
+                const lat = parseFloat(data[0].lat);
+                const lon = parseFloat(data[0].lon);
+                map.flyTo([lat, lon], 17, { duration: 1.5 });
+                if (searchMarker) map.removeLayer(searchMarker);
+                searchMarker = L.marker([lat, lon]).addTo(map).bindPopup(data[0].display_name).openPopup();
+            } else {
+                showStatus('Адрес не найден на карте.', false);
+            }
+        } catch (e) {
+            showStatus('Ошибка геокодирования.', false);
+        }
+    }
+    function activateEditMode(id, cadNum, area, address, type) {
+        let targetLayer = polygonMap.get(id);
+        if (!targetLayer) return;
+        resetToCreateMode();
+        currentlyEditingLayer = targetLayer;
+        registeredItems.removeLayer(targetLayer);
+        drawnItems.addLayer(targetLayer);
+        document.getElementById('input-edit-id').value = id;
+        document.getElementById('input-type').value = type;
+        document.getElementById('reg-cad-number').value = cadNum;
+        document.getElementById('reg-cad-number').readOnly = true;
+        document.getElementById('input-address').value = address;
+        document.getElementById('input-area').value = area;
+        document.getElementById('baunit-creation-row').style.display = 'none';
+        processGeometry(targetLayer);
+        document.getElementById('form-title-text').innerText = 'Редактирование контура';
+        const btnSubmit = document.getElementById('btn-submit');
+        btnSubmit.innerHTML = '<i data-lucide="save"></i> Сохранить изменения';
+        btnSubmit.classList.replace('btn-primary', 'btn-success');
+        btnSubmit.style.background = '#10b981';
+        document.getElementById('btn-cancel').style.display = 'flex';
+        lucide.createIcons();
+        map.flyToBounds(targetLayer.getBounds(), { padding: [50, 50], duration: 1 });
+    }
+    function resetToCreateMode() {
+        document.getElementById('registration-form').reset();
+        document.getElementById('input-edit-id').value = '';
+        document.getElementById('reg-cad-number').readOnly = false;
+        document.getElementById('input-address').readOnly = false;
+        document.getElementById('chk-create-baunit').checked = true;
+        document.getElementById('baunit-creation-row').style.display = 'flex';
+        document.getElementById('form-title-text').innerText = 'Регистрация объекта';
+        const btnSubmit = document.getElementById('btn-submit');
+        btnSubmit.innerHTML = '<i data-lucide="save"></i> Зарегистрировать контур';
+        btnSubmit.style.background = '';
+        btnSubmit.classList.replace('btn-success', 'btn-primary');
+        document.getElementById('btn-cancel').style.display = 'none';
+        if (currentlyEditingLayer) {
+            drawnItems.removeLayer(currentlyEditingLayer);
+            registeredItems.addLayer(currentlyEditingLayer);
+            currentlyEditingLayer = null;
+        } else {
+            drawnItems.clearLayers();
+        }
+        if (searchMarker) map.removeLayer(searchMarker);
+        hideStatus();
+        lucide.createIcons();
+    }
+    async function submitForm(event) {
+        event.preventDefault();
+        const btn = document.getElementById('btn-submit');
+        const originalHtml = btn.innerHTML;
+        const editId = document.getElementById('input-edit-id').value;
+        const wkt = document.getElementById('input-wkt').value;
+        const areaSqMeters = parseFloat(document.getElementById('input-area').value) || 0;
+        const type = document.getElementById('input-type').value;
+        const createLinkedProperty = document.getElementById('chk-create-baunit').checked;
+        if (!wkt) {
+            showStatus('Пожалуйста, нарисуйте контур объекта на карте.', false);
+            return;
+        }
+        btn.innerHTML = '<i data-lucide="loader" class="animate-spin"></i> Сохранение...';
+        btn.disabled = true;
+        lucide.createIcons();
+        try {
+            let response;
+            if (editId) {
+                response = await fetch(`/api/gis-sync/update-boundary/${editId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        Wkt: wkt,
+                        AreaSqMeters: areaSqMeters,
+                        Type: type
+                    })
+                });
+            } else {
+                response = await fetch('/api/gis-sync/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        CadastralNumber: document.getElementById('reg-cad-number').value,
+                        Address: document.getElementById('input-address').value,
+                        Wkt: wkt,
+                        AreaSqMeters: areaSqMeters,
+                        Type: type,
+                        CreateLinkedProperty: createLinkedProperty
+                    })
+                });
+            }
+            if (response.ok) {
+                showStatus(editId ? 'Контур объекта успешно обновлен!' : 'Объект успешно зарегистрирован!', true);
+                setTimeout(() => {
+                    loadRegisteredUnits();
+                    resetToCreateMode();
+                }, 1500);
+            } else {
+                const err = await response.json();
+                showStatus(err.detail || 'Ошибка сохранения', false);
+            }
+        } catch (e) {
+            showStatus('Сетевая ошибка сервера.', false);
+        } finally {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+            lucide.createIcons();
+        }
+    }
+    function loadRegisteredUnits() {
+        fetch('/api/gis-sync/spatial-units')
+            .then(r => r.json())
+            .then(data => {
+                registeredItems.clearLayers();
+                polygonMap.clear();
+                spatialDataArray = data.features || [];
+                L.geoJSON(data, {
+                    style: function (feature) {
+                        const t = feature.properties.type || 'Parcel';
+                        const color = typeConfig[t] ? typeConfig[t].color : '#10b981';
+                        return { color: color, weight: 3, fillOpacity: 0.35 };
+                    },
+                    onEachFeature: function (feature, layer) {
+                        const id = feature.properties.id;
+                        layer.featureId = id;
+                        const cadNum = feature.properties.referenceNumber || 'Б/Н';
+                        const area = feature.properties.areaSqMeters ? feature.properties.areaSqMeters.toFixed(1) : '0';
+                        const address = feature.properties.address || 'Неизвестно';
+                        const t = feature.properties.type || 'Parcel';
+                        const config = typeConfig[t] || typeConfig['Parcel'];
+                        const popupContent = `
+                            <div class="custom-popup-header" style="background-color: ${config.color}">
+                                Учетный контур
+                            </div>
+                            <div class="custom-popup-body">
+                                <div class="custom-popup-row">
+                                    <span class="custom-popup-label">Идентификатор</span>
+                                    <span class="custom-popup-value">${cadNum}</span>
+                                </div>
+                                <div class="custom-popup-row">
+                                    <span class="custom-popup-label">Категория</span>
+                                    <span class="custom-popup-value">${config.label}</span>
+                                </div>
+                                <div class="custom-popup-row">
+                                    <span class="custom-popup-label">Площадь</span>
+                                    <span class="custom-popup-value">${area} м²</span>
+                                </div>
+                                <div class="custom-popup-row" style="border-bottom: none;">
+                                    <span class="custom-popup-label">Адрес</span>
+                                    <span class="custom-popup-value" style="font-size:0.8rem; text-align:right;">${address}</span>
+                                </div>
+                                <hr style="margin: 12px 0; border-top: 1px solid #e2e8f0;">
+                                <button class="btn-outline" style="width: 100%; padding: 6px; font-size: 0.85rem; color: #3b82f6; border-color: #3b82f6; border-radius: 6px;"
+                                        onclick="activateEditMode('${id}', '${cadNum}', '${area}', '${address.replace(/'/g, "\\'")}', '${t}')">
+                                    Изменить контур
+                                </button>
+                            </div>
+                        `;
+                        layer.bindPopup(popupContent);
+                        layer.on('click', () => highlightSidebarCard(id));
+                        polygonMap.set(id, layer);
+                        registeredItems.addLayer(layer);
+                    }
+                });
+                if (polygonMap.size > 0 && !currentlyEditingLayer) {
+                    map.fitBounds(registeredItems.getBounds(), { padding: [50, 50] });
+                }
+                renderList(spatialDataArray);
+            });
+    }
+    function renderList(features) {
+        const container = document.getElementById('gis-list-container');
+        container.innerHTML = '';
+        if (features.length === 0) {
+            container.innerHTML = `
+                <div class="gis-empty-state">
+                    <i data-lucide="map-x" style="width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
+                    <span>Контуры не зарегистрированы.</span>
+                </div>
+            `;
+            lucide.createIcons();
+            return;
+        }
+        features.forEach(feature => {
+            const props = feature.properties;
+            const t = props.type || 'Parcel';
+            const config = typeConfig[t] || typeConfig['Parcel'];
+            const typeClass = `type-${t.toLowerCase()}`;
+            const cadNum = props.referenceNumber || 'Б/Н';
+            const area = props.areaSqMeters ? props.areaSqMeters.toFixed(1) : '0';
+            const card = document.createElement('div');
+            card.className = `gis-card ${typeClass}`;
+            card.id = `card-${props.id}`;
+            card.onclick = () => focusOnPolygon(props.id);
+            card.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div>
+                        <div style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">${config.label}</div>
+                        <div class="gis-card-title">${cadNum}</div>
+                    </div>
+                    <div style="background: ${config.color}20; color: ${config.color}; padding: 6px; border-radius: 8px;">
+                        <i data-lucide="${config.icon}" style="width: 18px; height: 18px;"></i>
+                    </div>
+                </div>
+                <div class="gis-card-meta">
+                    <span>Площадь: <strong>${area} м²</strong></span>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+        lucide.createIcons();
+    }
+    function filterGisList() {
+        const term = document.getElementById('gis-search').value.toLowerCase();
+        const filtered = spatialDataArray.filter(f => f.properties.referenceNumber.toLowerCase().includes(term));
+        renderList(filtered);
+    }
+    function focusOnPolygon(id) {
+        highlightSidebarCard(id);
+        const polygon = polygonMap.get(id);
+        if (polygon) {
+            map.flyToBounds(polygon.getBounds(), { padding: [100, 100], duration: 1.5 });
+            setTimeout(() => polygon.openPopup(), 1500);
+        }
+    }
+    function highlightSidebarCard(id) {
+        document.querySelectorAll('.gis-card').forEach(c => c.classList.remove('active'));
+        const card = document.getElementById(`card-${id}`);
+        if (card) {
+            card.classList.add('active');
+            card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }
+    function showStatus(text, isSuccess) {
+        const box = document.getElementById('status-box');
+        box.style.display = 'block';
+        box.innerText = text;
+        box.style.backgroundColor = isSuccess ? '#dcfce7' : '#fee2e2';
+        box.style.color = isSuccess ? '#166534' : '#991b1b';
+        box.style.border = isSuccess ? '1px solid #bbf7d0' : '1px solid #fecaca';
+    }
+    function hideStatus() {
+        document.getElementById('status-box').style.display = 'none';
+    }
+</script>

@@ -1,0 +1,103 @@
+﻿@page
+@model CadastreInvent.Api.Pages.ArchiveModel
+@{
+    ViewData["Title"] = "Архив (Корзина)";
+    ViewData["ActivePage"] = "Archive";
+}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Архив удаленных записей</h1>
+        <p class="page-subtitle">Центр восстановления данных (Soft Delete) и физического уничтожения информации</p>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.StatusMessage))
+{
+    <div class="alert @(Model.StatusMessage.Contains("Ошибка") ? "alert-error" : (Model.StatusMessage.Contains("Внимание") ? "alert-error" : "alert-success"))">
+        <i data-lucide="@(Model.StatusMessage.Contains("Ошибка") || Model.StatusMessage.Contains("Внимание") ? "alert-triangle" : "check-circle")" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 8px;"></i>
+        <span style="vertical-align: middle;">@Model.StatusMessage</span>
+    </div>
+}
+
+<div class="tabs">
+    <a href="/Archive?tab=spatial" class="tab-link @(Model.Tab == "spatial" ? "active" : "")">Контуры (ГИС)</a>
+    <a href="/Archive?tab=baunits" class="tab-link @(Model.Tab == "baunits" ? "active" : "")">Объекты</a>
+    <a href="/Archive?tab=parties" class="tab-link @(Model.Tab == "parties" ? "active" : "")">Субъекты</a>
+    <a href="/Archive?tab=rrr" class="tab-link @(Model.Tab == "rrr" ? "active" : "")">Права</a>
+    <a href="/Archive?tab=sources" class="tab-link @(Model.Tab == "sources" ? "active" : "")">Документы</a>
+    <a href="/Archive?tab=models" class="tab-link @(Model.Tab == "models" ? "active" : "")" style="border-left: 2px solid #e2e8f0; padding-left: 16px; margin-left: 8px;">Модели оценки</a>
+</div>
+
+<div class="alert alert-info" style="background: #f8fafc; border: 1px solid #e2e8f0; color: #475569; margin-bottom: 20px;">
+    <i data-lucide="info" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 8px;"></i>
+    <span style="vertical-align: middle;">Все данные в этом разделе скрыты от обычных пользователей и процессов системы. Восстановление немедленно вернет их в активный ЕГРН. Уничтожение сотрет их с диска навсегда.</span>
+</div>
+
+<div class="table-container">
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Тип записи / Идентификатор</th>
+                    <th>Описание объекта</th>
+                    <th>Дата удаления (UTC)</th>
+                    <th style="text-align: right;">Управление</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.DeletedItems.Count == 0)
+                {
+                    <tr>
+                        <td colspan="4" style="text-align: center; padding: 32px; color: #94a3b8;">
+                            <i data-lucide="archive" style="width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
+                            <div style="font-size: 1.1rem; font-weight: 500;">Корзина пуста</div>
+                            <div style="font-size: 0.9rem;">В данной категории нет удаленных записей</div>
+                        </td>
+                    </tr>
+                }
+
+                @foreach (var item in Model.DeletedItems)
+                {
+                    <tr style="background: #fffafa;">
+                        <td>
+                            <div class="td-flex">
+                                <div class="td-icon icon-bg-slate" style="background: #f1f5f9; color: #475569;"><i data-lucide="@(item.EntityType == "MassAppraisalModel" ? "cpu" : "file-x-2")"></i></div>
+                                <div>
+                                    <div class="td-title">@item.EntityType</div>
+                                    <div class="td-subtitle" style="font-family: monospace;">@item.Id.ToString().Substring(0, 8)...</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div style="font-weight: 600; color: #334155;">@item.Title</div>
+                            <div style="font-size: 0.85rem; color: #64748b; max-width: 400px;">@item.Subtitle</div>
+                        </td>
+                        <td>
+                            <span style="color: #dc2626; font-weight: 500;">@(item.DeletedAt?.ToString("dd.MM.yyyy HH:mm"))</span>
+                        </td>
+                        <td style="text-align: right; white-space: nowrap;">
+                            <form method="post" asp-page-handler="Restore" style="display:inline;">
+                                <input type="hidden" name="id" value="@item.Id" />
+                                <input type="hidden" name="entityType" value="@item.EntityType" />
+                                <input type="hidden" name="Tab" value="@Model.Tab" />
+                                <button type="submit" class="btn-outline" style="border-color: #10b981; color: #10b981; padding: 6px 12px; font-size: 0.85rem; margin-right: 8px;">
+                                    <i data-lucide="refresh-cw" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i> Восстановить
+                                </button>
+                            </form>
+
+                            <form method="post" asp-page-handler="HardDelete" style="display:inline;" onsubmit="return confirm('ВНИМАНИЕ! Это действие необратимо. Запись будет удалена физически. @(item.EntityType == "MassAppraisalModel" ? "Связь с уже рассчитанными оценками будет аннулирована." : "") Вы уверены?');">
+                                <input type="hidden" name="id" value="@item.Id" />
+                                <input type="hidden" name="entityType" value="@item.EntityType" />
+                                <input type="hidden" name="Tab" value="@Model.Tab" />
+                                <button type="submit" class="btn-primary" style="background: #dc2626; padding: 6px 12px; font-size: 0.85rem; box-shadow: none;">
+                                    <i data-lucide="flame" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i> Уничтожить
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

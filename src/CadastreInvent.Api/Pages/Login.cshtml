@@ -1,0 +1,93 @@
+﻿@page
+@model CadastreInvent.Api.Pages.LoginModel
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Вход в систему - Кадастровая оценка</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="~/css/login.css" asp-append-version="true" />
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+    <div class="login-wrapper">
+
+        <!-- Левая часть: Брендинг -->
+        <div class="login-left">
+            <div class="login-left-content">
+                <div class="system-badge">Закрытый контур</div>
+
+                <!-- Логотип. CSS жестко ограничивает его размер до 200px -->
+                <img src="/uploads/branding/company-logo.png"
+                     onerror="this.onerror=null; this.src='https://placehold.co/200x200/f8fafc/94a3b8?text=ЛОГОТИП';"
+                     alt="Логотип системы"
+                     class="brand-logo" />
+
+                <h1 class="brand-title">Информационная система управления процессами кадастровой оценки объектов недвижимости</h1>
+                <p class="brand-subtitle">
+                    Единая защищенная платформа государственного кадастрового учета, пространственного анализа и массовой оценки.
+                </p>
+            </div>
+        </div>
+
+        <!-- Правая часть: Форма -->
+        <div class="login-right">
+            <div class="login-form-container">
+
+                <div class="form-header">
+                    <h2>Авторизация</h2>
+                    <p>Введите служебные учетные данные для доступа в систему.</p>
+                </div>
+
+                <form method="post">
+                    @if (!ModelState.IsValid)
+                    {
+                        <div class="alert-box">
+                            <i data-lucide="shield-alert" class="alert-icon"></i>
+                            <div class="alert-text">
+                                <strong>Отказ в доступе</strong>
+                                <div asp-validation-summary="All"></div>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="form-group">
+                        <label asp-for="Email" class="form-label">Служебный идентификатор</label>
+                        <div class="input-icon-wrapper">
+                            <i data-lucide="mail" class="input-icon"></i>
+                            <input asp-for="Email" class="form-input" placeholder="ivanov.i@rosreestr.ru" autocomplete="email" />
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label asp-for="Password" class="form-label">Пароль</label>
+                        <div class="input-icon-wrapper">
+                            <i data-lucide="lock" class="input-icon"></i>
+                            <input asp-for="Password" type="password" class="form-input" placeholder="••••••••••••" autocomplete="current-password" />
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-submit">
+                        Войти в систему
+                    </button>
+
+                    <div class="form-footer">
+                        Доступ предоставляется исключительно уполномоченным государственным служащим.
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

@@ -1,0 +1,1260 @@
+﻿@page
+@model CadastreInvent.Api.Pages.ValuationModel
+@using CadastreInvent.Valuation.Domain.Enums
+@{
+    ViewData["Title"] = "Массовая кадастровая оценка";
+    ViewData["ActivePage"] = "Valuation";
+    if (string.IsNullOrEmpty(Model.Tab)) Model.Tab = "dashboard";
+
+    Microsoft.AspNetCore.Html.IHtmlContent RenderLookup(string label, string fieldName, string idPrefix, string url, string dictTitle)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"<div class=\"form-group\">");
+        sb.AppendLine($"    <label class=\"form-label\">{label}</label>");
+        sb.AppendLine($"    <input type=\"hidden\" name=\"{fieldName}\" id=\"{idPrefix}-id\" />");
+        sb.AppendLine($"    <div class=\"lookup-wrapper\">");
+        sb.AppendLine($"        <input type=\"text\" id=\"{idPrefix}-text\" class=\"lookup-input\" readonly placeholder=\"Вызвать справочник...\" onclick=\"openDictionary('{url}', '{idPrefix}-id', '{idPrefix}-text', '{dictTitle}')\" />");
+        sb.AppendLine($"        <button type=\"button\" class=\"lookup-btn\" onclick=\"openDictionary('{url}', '{idPrefix}-id', '{idPrefix}-text', '{dictTitle}')\"><i data-lucide=\"search\" style=\"width: 16px;\"></i></button>");
+        sb.AppendLine($"    </div>");
+        sb.AppendLine($"</div>");
+        return Html.Raw(sb.ToString());
+    }
+}
+<link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/valuation-modals.css" asp-append-version="true" />
+<style>
+    .filter-panel {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+        padding: 16px;
+        background: #ffffff;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .table-search {
+        position: relative;
+        flex: 1 1 auto;
+        min-width: 250px;
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        pointer-events: none;
+        z-index: 10;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 8px 16px 8px 38px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        outline: none;
+        background: #ffffff;
+        color: #0f172a;
+        box-sizing: border-box;
+        transition: all 0.2s;
+    }
+
+        .search-input:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .dash-card {
+        background: white;
+        padding: 24px;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        box-shadow: var(--shadow-soft);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .dash-value {
+        font-size: 2rem;
+        font-weight: 800;
+        color: #0f172a;
+        margin-top: 8px;
+    }
+
+    .dash-title {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .btn-outline:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        border-color: #cbd5e1 !important;
+        color: #64748b !important;
+    }
+
+    .btn-primary:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        background: #94a3b8 !important;
+        border-color: #94a3b8 !important;
+        box-shadow: none !important;
+    }
+</style>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Массовая кадастровая оценка (CAMA)</h1>
+        <p class="page-subtitle">Обучение нейросетей, учет ценообразующих факторов и обработка оспариваний стоимости</p>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
+        @if (Model.Tab == "models")
+        {
+            <form method="post" asp-page-handler="Train" style="margin: 0;">
+                <button type="submit" class="btn-primary" onclick="return confirm('Запустить обучение модели? В случае обнаружения мусорных сделок, они будут заблокированы.');">
+                    <i data-lucide="brain-circuit"></i> Обучить новую модель
+                </button>
+            </form>
+        }
+        else if (Model.Tab == "units")
+        {
+            <button class="btn-primary" onclick="openModal('modal-unit-create')">
+                <i data-lucide="plus"></i> Поставить на оценку
+            </button>
+        }
+        else if (Model.Tab == "sales")
+        {
+            <button class="btn-primary" onclick="openModal('modal-sale')">
+                <i data-lucide="plus"></i> Внести сделку в реестр цен
+            </button>
+        }
+        else if (Model.Tab == "appeals")
+        {
+            <button class="btn-primary" onclick="openModal('modal-appeal-create')">
+                <i data-lucide="scale"></i> Зарегистрировать апелляцию
+            </button>
+        }
+    </div>
+</div>
+
+<div class="tabs" style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-bottom: 8px;">
+    <a href="/Valuation?tab=dashboard" class="tab-link @(Model.Tab == "dashboard" ? "active" : "")"><i data-lucide="layout-dashboard" style="width:16px; margin-right:6px;"></i>Аналитика</a>
+    <a href="/Valuation?tab=models" class="tab-link @(Model.Tab == "models" ? "active" : "")">Модели оценки</a>
+    <a href="/Valuation?tab=units" class="tab-link @(Model.Tab == "units" ? "active" : "")">Объекты</a>
+    <a href="/Valuation?tab=sales" class="tab-link @(Model.Tab == "sales" ? "active" : "")">Реестр сделок</a>
+    <a href="/Valuation?tab=results" class="tab-link @(Model.Tab == "results" ? "active" : "")">Результаты оценки</a>
+    <a href="/Valuation?tab=appeals" class="tab-link @(Model.Tab == "appeals" ? "active" : "")">Оспаривание</a>
+    <a href="/Valuation?tab=diagnostics" class="tab-link @(Model.Tab == "diagnostics" ? "active" : "")" style="background:#fef2f2; color:#b91c1c; border-color:#fecaca;"><i data-lucide="terminal" style="width:16px; margin-right:6px;"></i>Live-Терминал</a>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.StatusMessage))
+{
+    <div class="alert alert-info" style="@(Model.StatusMessage.Contains("Ошибка") || Model.StatusMessage.Contains("Сбой") ? "background: #fef2f2; color: #991b1b; border-color: #fecaca;" : "background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe;")">
+        <i data-lucide="@(Model.StatusMessage.Contains("Ошибка") || Model.StatusMessage.Contains("Сбой") ? "alert-triangle" : "info")" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 8px;"></i>
+        <span style="vertical-align: middle;">@Model.StatusMessage</span>
+    </div>
+}
+
+@if (Model.Tab == "diagnostics")
+{
+    <partial name="Shared/_DiagnosticsTerminal" />
+}
+else if (Model.Tab == "dashboard")
+{
+    <div id="dash-loading" style="padding: 40px; text-align: center; color: #64748b;">
+        <i data-lucide="loader" class="animate-spin" style="width: 32px; height: 32px; margin-bottom: 16px;"></i>
+        <div>Сбор аналитики движка CAMA...</div>
+    </div>
+
+    <div id="dash-content" class="dashboard-grid" style="display: none;">
+        <div class="dash-card">
+            <div style="display:flex; justify-content: space-between; align-items:flex-start;">
+                <div class="dash-title">Готовность к ML Обучению</div>
+                <div id="dash-ready-icon"></div>
+            </div>
+            <div class="dash-value" id="dash-sales-count">0 <span style="font-size: 1rem; color: #64748b; font-weight: normal;">/ 10 мин. сделок</span></div>
+            <p id="dash-sales-text" style="font-size: 0.85rem; margin-top: 12px; color: #475569;"></p>
+        </div>
+
+        <div class="dash-card">
+            <div style="display:flex; justify-content: space-between; align-items:flex-start;">
+                <div class="dash-title">Текущая ML Модель</div>
+                <div id="dash-model-badge"></div>
+            </div>
+            <div class="dash-value" id="dash-model-version" style="font-size: 1.5rem;">Загрузка...</div>
+            <div id="dash-model-metrics" style="margin-top: 12px; font-size: 0.85rem; background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0;"></div>
+        </div>
+
+        <div class="dash-card">
+            <div style="display:flex; justify-content: space-between; align-items:flex-start;">
+                <div class="dash-title">Статистика Реестра</div>
+                <i data-lucide="database" style="color: #3b82f6;"></i>
+            </div>
+            <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 12px;">
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">
+                    <span style="color: #64748b; font-size: 0.9rem;">Объектов на учете:</span>
+                    <strong id="dash-total-units" style="color: #0f172a;">0</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding-bottom: 8px;">
+                    <span style="color: #64748b; font-size: 0.9rem;">Рассчитанных оценок:</span>
+                    <strong id="dash-total-vals" style="color: #0f172a;">0</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="background: white; padding: 16px; border-radius: 12px; border: 1px solid #e2e8f0; margin-top: 24px; box-shadow: var(--shadow-soft);">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span style="font-weight: 600; color: #0f172a;"><i data-lucide="cpu" style="width:16px;height:16px;vertical-align:middle;margin-right:8px;color:#3b82f6;"></i>Индикатор фоновой оценки</span>
+            <span id="mass-appraisal-text" style="font-weight: 700; color: #3b82f6;">Ожидание...</span>
+        </div>
+        <div style="width: 100%; background: #e2e8f0; border-radius: 8px; height: 12px; overflow: hidden;">
+            <div id="mass-appraisal-bar" style="width: 0%; background: #3b82f6; height: 100%; transition: width 0.4s ease-in-out;"></div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="table-container">
+        <div class="filter-panel">
+            <div class="table-search">
+                <i data-lucide="search" class="search-icon" style="color: #3b82f6; width: 18px; height: 18px;"></i>
+                <input type="text" id="api-search-input" class="search-input" placeholder="Поиск в базе данных сервера..." autocomplete="off" />
+            </div>
+
+            @if (Model.Tab == "units")
+            {
+                <select id="api-filter-select" class="filter-input" style="flex: 0 1 auto;">
+                    <option value="">Все зоны территориального покрытия</option>
+                    <option value="Residential">ИЖС (Жилая зона)</option>
+                    <option value="Commercial">Коммерция</option>
+                    <option value="Industrial">Индустриальная зона</option>
+                    <option value="Agricultural">Агропромышленность</option>
+                </select>
+            }
+            else if (Model.Tab == "sales")
+            {
+                <select id="api-filter-select" class="filter-input" style="flex: 0 1 auto;">
+                    <option value="">Любые транзакции</option>
+                    <option value="ValidMarket">Достоверные рыночные сделки</option>
+                    <option value="InvalidAffiliated">Аффилированные сделки (Исключены)</option>
+                    <option value="InvalidForeclosure">Реализация залогов (Исключены)</option>
+                    <option value="InvalidOutlier">Статистические выбросы (Исключены)</option>
+                </select>
+            }
+            else if (Model.Tab == "results")
+            {
+                <select id="api-filter-select" class="filter-input" style="flex: 0 1 auto;">
+                    <option value="">Все методики вычисления</option>
+                    <option value="AutomatedMachineLearning">Массовая (CAMA)</option>
+                    <option value="Comparative">Индивидуальная (Сравнительная)</option>
+                </select>
+            }
+            else if (Model.Tab == "appeals")
+            {
+                <select id="api-filter-select" class="filter-input" style="flex: 0 1 auto;">
+                    <option value="">Все статусы производств</option>
+                    <option value="Submitted">Первичное заявление</option>
+                    <option value="UnderReview">Анализ комиссией</option>
+                    <option value="Resolved">Акт удовлетворен</option>
+                    <option value="Rejected">Отказ в удовлетворении</option>
+                    <option value="CourtDispute">Судебное производство</option>
+                </select>
+            }
+            <button class="btn-outline" style="padding: 6px 12px; font-size: 0.8rem;" onclick="resetApiFilters()">Сбросить</button>
+        </div>
+
+        <div class="table-responsive">
+            <table id="valuation-main-table">
+                <thead>
+                    <tr>
+                        @if (Model.Tab == "models")
+                        {
+                            <th>Спецификация алгоритма</th>
+                            <th>Детализация и Метрики</th>
+                            <th>Дата фиксации</th>
+                            <th style="text-align:right;">Управление</th>
+     }
+                        else if (Model.Tab == "units")
+                        {
+                            <th>Объект</th>
+                            <th>Зонирование</th>
+                            <th>Характеристики</th>
+                            <th style="text-align:right;">Операции</th>
+     }
+                        else if (Model.Tab == "sales")
+                        {
+                            <th>Объект</th>
+                            <th>Стоимость</th>
+                            <th>Дата</th>
+                            <th>Статус</th>
+                            <th style="text-align:right;">Управление</th>
+     }
+                        else if (Model.Tab == "results")
+                        {
+                            <th>Объект</th>
+                            <th>Зона</th>
+                            <th>Стоимость</th>
+                            <th>Алгоритм</th>
+                            <th>Модель</th>
+                            <th style="text-align:right;">Хронология</th>
+     }
+                        else if (Model.Tab == "appeals")
+                        {
+                            <th>Объект / Заявитель</th>
+                            <th>Претензия</th>
+                            <th>Текущая цена</th>
+                            <th>Статус</th>
+                            <th style="text-align:right;">Решение</th>
+     }
+                    </tr>
+                </thead>
+                <tbody id="valuation-tbody"><tr><td colspan="6" style="text-align:center; padding: 40px; color: #94a3b8;">Загрузка...</td></tr></tbody>
+            </table>
+        </div>
+        <div style="padding: 16px 24px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #f8fafc;">
+            <div style="font-size: 0.85rem; color: #64748b;" id="pagination-info">Загрузка системной информации...</div>
+            <div style="display: flex; gap: 8px;" id="pagination-buttons"></div>
+        </div>
+    </div>
+}
+
+<!-- МОДАЛКИ ДЛЯ CRUD ОПЕРАЦИЙ -->
+<div id="modal-appraisal-wizard" class="modal-overlay hidden" style="z-index: 1000;">
+    <div class="modal-container" style="max-width: 650px;">
+        <form method="post" id="appraisal-wizard-form" asp-page-handler="ExecuteAppraisal">
+            <input type="hidden" name="Tab" value="results" />
+            <input type="hidden" asp-for="ExecuteAppraisalInput.ModelId" id="wiz-model-id" />
+            <div class="modal-header" style="background: #0f172a; color: white;">
+                <h3 style="display: flex; align-items: center; gap: 8px;"><i data-lucide="cpu" style="color: #10b981;"></i> Ассистент массовой оценки</h3>
+                <button type="button" class="btn-icon" onclick="closeModal('modal-appraisal-wizard')" style="color: white;"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body" style="background: #f8fafc;">
+                <div class="wizard-nav">
+                    <div class="wizard-step active" id="appr-step-nav-1"><div class="wizard-circle">1</div><div class="wizard-label">Алгоритм ML</div></div>
+                    <div class="wizard-step" id="appr-step-nav-2"><div class="wizard-circle">2</div><div class="wizard-label">Фильтрация</div></div>
+                    <div class="wizard-step" id="appr-step-nav-3"><div class="wizard-circle">3</div><div class="wizard-label">Запуск процесса</div></div>
+                </div>
+                <div class="wizard-content active" id="appr-step-content-1">
+                    <div style="background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: var(--shadow-soft);">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Выбранная математическая модель</label>
+                            <input type="text" id="wiz-model-text" class="form-control" readonly style="background: #e2e8f0; color: #475569; font-weight: 600;" />
+                        </div>
+                    </div>
+                </div>
+                <div class="wizard-content" id="appr-step-content-2">
+                    <div style="background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: var(--shadow-soft);">
+                        <div class="form-group">
+                            <label class="form-label">Ограничение по зоне покрытия (Опционально)</label>
+                            <select asp-for="ExecuteAppraisalInput.ZoningStatusFilter" class="form-control" style="background: white;">
+                                <option value="">Без территориальных ограничений (Весь реестр)</option>
+                                <option value="Residential">ИЖС (Жилая застройка)</option>
+                                <option value="Commercial">Коммерческая зона</option>
+                                <option value="Industrial">Промышленная зона</option>
+                                <option value="Agricultural">Сельхозназначение</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; gap: 16px;">
+                            <div class="form-group" style="flex: 1;">
+                                <label class="form-label">Минимальная площадь (от)</label>
+                                <input asp-for="ExecuteAppraisalInput.MinArea" type="number" step="0.1" min="0" class="form-control" placeholder="0.0" />
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label class="form-label">Максимальная площадь (до)</label>
+                                <input asp-for="ExecuteAppraisalInput.MaxArea" type="number" step="0.1" min="0" class="form-control" placeholder="Не ограничено" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="wizard-content" id="appr-step-content-3">
+                    <div style="background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: var(--shadow-soft);">
+                        <div class="alert alert-info" style="margin: 0;">
+                            <i data-lucide="info" style="width: 20px; height: 20px; float: left; margin-right: 12px;"></i>
+                            <strong>Внимание!</strong> Фоновый расчет приведет к генерации тысяч транзакций в базе данных. Старые оценки сохранятся в историческом срезе, а новые станут актуальными немедленно по завершении процесса.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-outline" id="appr-wiz-btn-prev" onclick="appraisalWizardPrev()" style="display: none;">Предыдущий этап</button>
+                <button type="button" class="btn-primary" id="appr-wiz-btn-next" onclick="appraisalWizardNext()">Продолжить конфигурацию <i data-lucide="arrow-right" style="margin-left: 8px; margin-right: 0;"></i></button>
+                <button type="submit" class="btn-primary" id="appr-wiz-btn-submit" style="display: none; background: #10b981; box-shadow: 0 4px 12px rgba(16,185,129,0.3);"><i data-lucide="play" style="margin-right: 8px;"></i> Инициировать процессинг</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="modal-unit-create" class="modal-overlay hidden" style="z-index: 1000;">
+    <div class="modal-container">
+        <form method="post" asp-page-handler="CreateValuationUnit">
+            <input type="hidden" name="Tab" value="units" />
+            <div class="modal-header">
+                <h3>Постановка объекта на учет для оценки</h3>
+                <button type="button" class="btn-icon" onclick="closeModal('modal-unit-create')"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Связанный объект недвижимости</label>
+                    <select asp-for="CreateUnitInput.BAUnitId" class="form-control" required>
+                        @foreach (var b in Model.AvailableBAUnits)
+                        {
+                            <option value="@b.Id">@b.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Зона территориального зонирования</label>
+                    <select asp-for="CreateUnitInput.ZoningStatus" class="form-control" required>
+                        <option value="Residential">ИЖС (Жилая застройка)</option>
+                        <option value="Commercial">Коммерческая зона</option>
+                        <option value="Industrial">Промышленная зона</option>
+                        <option value="Agricultural">Сельхозназначение</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-outline" onclick="closeModal('modal-unit-create')">Отмена</button>
+                <button type="submit" class="btn-primary">Создать профиль оценки</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="modal-zoning-edit" class="modal-overlay hidden" style="z-index: 1000;">
+    <div class="modal-container">
+        <form method="post" asp-page-handler="UpdateZoning">
+            <input type="hidden" name="Tab" value="units" />
+            <input type="hidden" asp-for="UpdateZoningInput.ValuationUnitId" id="zoning-unit-id" />
+            <div class="modal-header">
+                <h3>Изменение территориальной зоны</h3>
+                <button type="button" class="btn-icon" onclick="closeModal('modal-zoning-edit')"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Новая зона</label>
+                    <select asp-for="UpdateZoningInput.ZoningStatus" id="zoning-status-select" class="form-control" required>
+                        <option value="Residential">ИЖС (Жилая застройка)</option>
+                        <option value="Commercial">Коммерческая зона</option>
+                        <option value="Industrial">Промышленная зона</option>
+                        <option value="Agricultural">Сельхозназначение</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-outline" onclick="closeModal('modal-zoning-edit')">Отмена</button>
+                <button type="submit" class="btn-primary">Применить</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="modal-char-edit" class="modal-overlay hidden" style="z-index: 1000;">
+    <div class="modal-container" style="max-width: 500px;">
+        <form method="post" id="char-form" asp-page-handler="UpdateCharacteristic">
+            <input type="hidden" name="Tab" value="units" />
+            <input type="hidden" name="AddCharacteristicInput.ValuationUnitId" id="char-unit-id" />
+            <input type="hidden" name="UpdateCharacteristicInput.CharacteristicId" id="char-char-id" />
+            <input type="hidden" name="AddCharacteristicInput.CharacteristicsJson" id="char-json-add-hidden" />
+            <input type="hidden" name="UpdateCharacteristicInput.CharacteristicsJson" id="char-json-update-hidden" />
+
+            <div class="modal-header">
+                <h3>Матрица ценообразующих факторов</h3>
+                <button type="button" class="btn-icon" onclick="closeModal('modal-char-edit')"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group"><label class="form-label">Площадь (м²)</label><input type="number" step="0.1" id="char-area" class="form-control" required /></div>
+                    <div class="form-group"><label class="form-label">Год постройки</label><input type="number" id="char-year" class="form-control" required /></div>
+                    <div class="form-group"><label class="form-label">Этаж расположения</label><input type="number" id="char-floor" class="form-control" required /></div>
+                    <div class="form-group"><label class="form-label">Дистанция до центра (км)</label><input type="number" step="0.1" id="char-distance" class="form-control" required /></div>
+                    <div class="form-group" style="grid-column: span 2;"><label class="form-label">Количество жилых комнат</label><input type="number" id="char-rooms" class="form-control" required /></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-outline" onclick="closeModal('modal-char-edit')">Отмена</button>
+                <button type="submit" class="btn-primary" onclick="syncJson()">Сохранить параметры</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="modal-sale" class="modal-overlay hidden" style="z-index: 1000;">
+    <div class="modal-container">
+        <form method="post" asp-page-handler="RegisterSale">
+            <input type="hidden" name="Tab" value="sales" />
+            <div class="modal-header">
+                <h3>Регистрация рыночной сделки</h3>
+                <button type="button" class="btn-icon" onclick="closeModal('modal-sale')"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                @RenderLookup("Объект оценки (с заполненными факторами)", "RegisterSaleInput.ValuationUnitId", "lookup-vu", "/api/Valuation/lookup/valuationunits", "Справочник профилей объектов оценки")
+                <div class="form-group">
+                    <label class="form-label" style="color: var(--primary-dark); font-weight: 800;">Фактическая цена продажи (₽)</label>
+                    <input asp-for="RegisterSaleInput.SalePrice" type="number" step="1" class="form-control" style="font-size: 1.2rem; font-weight: 700; color: var(--primary);" required />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Дата регистрации сделки</label>
+                    <input asp-for="RegisterSaleInput.TransactionDate" type="date" class="form-control" value="@DateTime.UtcNow.ToString("yyyy-MM-dd")" required />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-outline" onclick="closeModal('modal-sale')">Отмена</button>
+                <button type="submit" class="btn-primary">Внести в реестр</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="modal-sale-invalidate" class="modal-overlay hidden" style="z-index: 1000;">
+    <div class="modal-container">
+        <form method="post" asp-page-handler="InvalidateSale">
+            <input type="hidden" name="Tab" value="sales" />
+            <input type="hidden" asp-for="InvalidateSaleInput.TransactionId" id="invalidate-sale-id" />
+            <div class="modal-header">
+                <h3>Выбраковка нерыночной сделки</h3>
+                <button type="button" class="btn-icon" onclick="closeModal('modal-sale-invalidate')"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-error" style="background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; margin-bottom: 16px;">
+                    <i data-lucide="alert-triangle" style="width: 16px; height: 16px; vertical-align: middle;"></i>
+                    Исключенная сделка больше не будет учитываться алгоритмами вычисления при массовой оценке.
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Причина исключения (Критерий недействительности)</label>
+                    <select asp-for="InvalidateSaleInput.NewValidity" class="form-control" required>
+                        <option value="InvalidAffiliated">Сделка между взаимозависимыми лицами (Аффилированность)</option>
+                        <option value="InvalidForeclosure">Банкротство / Реализация залогового имущества</option>
+                        <option value="InvalidOutlier">Статистический выброс (Аномальное отклонение цены)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-outline" onclick="closeModal('modal-sale-invalidate')">Отмена</button>
+                <button type="submit" class="btn-primary" style="background: #dc2626; box-shadow: none;">Аннулировать из выборки</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="modal-appeal-create" class="modal-overlay hidden" style="z-index: 1000;">
+    <div class="modal-container">
+        <form method="post" asp-page-handler="CreateAppeal">
+            <input type="hidden" name="Tab" value="appeals" />
+            <div class="modal-header">
+                <h3>Оформление апелляционного производства</h3>
+                <button type="button" class="btn-icon" onclick="closeModal('modal-appeal-create')"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                @RenderLookup("Оспариваемая оценка объекта", "CreateAppealInput.ValuationId", "lookup-valuation", "/api/Valuation/lookup/valuations", "Справочник результатов оценок")
+                @RenderLookup("Лицо, инициировавшее производство", "CreateAppealInput.ApplicantPartyId", "lookup-party", "/api/Valuation/lookup/parties", "Справочник субъектов права")
+                <div class="form-group">
+                    <label class="form-label">Правовое обоснование претензии</label>
+                    <textarea asp-for="CreateAppealInput.Reason" class="form-control" rows="4" style="resize: vertical;" required></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-outline" onclick="closeModal('modal-appeal-create')">Отмена</button>
+                <button type="submit" class="btn-primary">Зарегистрировать</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="modal-appeal-resolve" class="modal-overlay hidden" style="z-index: 1000;">
+    <div class="modal-container">
+        <form method="post" asp-page-handler="UpdateAppeal">
+            <input type="hidden" name="Tab" value="appeals" />
+            <input type="hidden" asp-for="UpdateAppealInput.AppealId" id="appeal-id-input" />
+            <div class="modal-header">
+                <h3>Регистрация решения процессуальной комиссии</h3>
+                <button type="button" class="btn-icon" onclick="closeModal('modal-appeal-resolve')"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Принятая процессуальная резолюция</label>
+                    <select asp-for="UpdateAppealInput.NewStatus" class="form-control" id="appeal-status-select" onchange="toggleNewPriceInput()" required>
+                        <option value="UnderReview">Запрос дополнительной аналитики (В работе)</option>
+                        <option value="CourtDispute">Делегирование в судебные органы</option>
+                        <option value="Rejected">Отклонение требований заявителя</option>
+                        <option value="Resolved">Удовлетворение требований (Ручной пересчет)</option>
+                    </select>
+                </div>
+                <div class="form-group hidden" id="new-price-container" style="display: none;">
+                    <label class="form-label" style="color: #047857; font-weight: 800;">Новая установленная стоимость (Российский рубль)</label>
+                    <input asp-for="UpdateAppealInput.NewAssessedValue" id="appeal-new-price-input" type="number" step="1" class="form-control" style="font-size: 1.25rem; font-weight: 700; color: #047857; background: #f0fdf4;" />
+                    <small style="color: #64748b; margin-top: 6px; display: block;">Указанный параметр перекроет системный результат расчета нейросети.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-outline" onclick="closeModal('modal-appeal-resolve')">Отмена</button>
+                <button type="submit" class="btn-primary">Применить постановление</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="modal-valuation-history" class="modal-overlay hidden" style="z-index: 1000;">
+    <div class="modal-container" style="max-width: 700px;">
+        <div class="modal-header">
+            <h3>История изменений кадастровой стоимости</h3>
+            <button type="button" class="btn-icon" onclick="closeModal('modal-valuation-history')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body" style="background: #f8fafc; max-height: 400px; overflow-y: auto;">
+            <div id="history-timeline" style="display: flex; flex-direction: column; gap: 16px;"></div>
+            <div id="history-loader" style="text-align: center; padding: 20px; color: #64748b; display: none;">
+                <i data-lucide="loader" class="animate-spin" style="width: 24px; height: 24px; margin: 0 auto;"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="modal-lookup" class="modal-overlay hidden" style="z-index: 1050;">
+    <div class="modal-container" style="max-width: 650px; padding: 0; min-height: 450px; display: flex; flex-direction: column;">
+        <div class="modal-header" style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 16px 20px;">
+            <h3 id="lookup-title" style="margin: 0; color: #0f172a; display: flex; align-items: center; gap: 8px; font-size: 1.1rem;"><i data-lucide="database"></i> Системный справочник</h3>
+            <button type="button" class="btn-icon" onclick="closeDictionary()"><i data-lucide="x"></i></button>
+        </div>
+        <div style="padding: 16px 20px; border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+            <div class="lookup-wrapper" style="background: white;">
+                <i data-lucide="search" style="margin-left: 12px; color: #94a3b8; width: 18px;"></i>
+                <input type="text" id="lookup-search" class="lookup-input" placeholder=" " onkeyup="delaySearchDictionary()" autocomplete="off" />
+            </div>
+        </div>
+        <div style="flex: 1; max-height: 400px; min-height: 250px; overflow-y: auto; background: white; position: relative;">
+            <table class="lookup-table" style="width: 100%;">
+                <thead><tr><th style="font-weight: 600; text-transform: uppercase; padding: 12px 20px; border-bottom: 1px solid #e2e8f0;">Идентификатор и информация из базы данных</th></tr></thead>
+                <tbody id="lookup-results"></tbody>
+            </table>
+            <div id="lookup-loader" style="display: none; padding: 40px 20px; text-align: center; color: #64748b;"><i data-lucide="loader" class="animate-spin" style="margin: 0 auto; width: 28px; height: 28px;"></i><div style="margin-top: 12px; font-size: 0.95rem;">Выполнение запроса к серверу...</div></div>
+            <div id="lookup-empty" style="display: none; padding: 40px 20px; text-align: center; color: #94a3b8;"><i data-lucide="inbox" style="margin: 0 auto 12px auto; width: 36px; height: 36px; opacity: 0.5;"></i><br><span id="lookup-empty-text">Информация по вашему запросу не найдена. Измените критерии поиска.</span></div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+<script>
+    let apiCurrentPage = 1;
+    const apiPageSize = 25;
+    const currentTab = '@Model.Tab';
+    let globalSignalRConnection = null;
+
+    document.addEventListener("DOMContentLoaded", function() {
+        initSignalR();
+        if (currentTab === 'dashboard') loadDashboardStats();
+        else if (currentTab === 'diagnostics') fetchDiagnosticHistory();
+        else fetchAndRenderTable();
+    });
+
+    function initSignalR() {
+        if (globalSignalRConnection) return;
+
+        globalSignalRConnection = new signalR.HubConnectionBuilder()
+            .withUrl("/hubs/mass-appraisal")
+            .withAutomaticReconnect()
+            .build();
+
+        globalSignalRConnection.on("AppraisalProgress", (data) => {
+            const bar = document.getElementById('mass-appraisal-bar');
+            const text = document.getElementById('mass-appraisal-text');
+
+            if (data.total > 0 && bar && text) {
+                const percent = Math.round((data.processed / data.total) * 100);
+                bar.style.width = percent + '%';
+                text.innerText = percent + '% (' + data.processed + ' / ' + data.total + ')';
+
+                if (data.status === 'completed') {
+                    bar.style.background = '#10b981';
+                    setTimeout(() => window.location.reload(), 2000);
+                } else {
+                    bar.style.background = '#3b82f6';
+                }
+            }
+        });
+
+        globalSignalRConnection.on("ReceiveDiagnosticLog", (log) => {
+            if (typeof appendLogToTerminal === "function") {
+                appendLogToTerminal(log);
+            }
+        });
+
+        globalSignalRConnection.start().catch(err => console.error("SignalR Connection Error: ", err));
+    }
+
+    function loadDashboardStats() {
+        fetch('/api/Valuation/dashboard-stats')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('dash-loading').style.display = 'none';
+                document.getElementById('dash-content').style.display = 'grid';
+
+                document.getElementById('dash-sales-count').innerHTML = `${data.validSales} <span style="font-size: 1rem; color: #64748b; font-weight: normal;">/ 10 мин. сделок</span>`;
+                if (data.isReadyForTraining) {
+                    document.getElementById('dash-ready-icon').innerHTML = '<i data-lucide="check-circle" style="color: #10b981; width: 24px; height: 24px;"></i>';
+                    document.getElementById('dash-sales-text').innerHTML = '<span style="color: #10b981; font-weight: 600;">Готово к обучению.</span> Вы можете запустить сборку модели.';
+                } else {
+                    document.getElementById('dash-ready-icon').innerHTML = '<i data-lucide="alert-triangle" style="color: #ef4444; width: 24px; height: 24px;"></i>';
+                    document.getElementById('dash-sales-text').innerHTML = '<span style="color: #ef4444; font-weight: 600;">Недостаточно данных.</span> Добавьте рыночные сделки. Система блокирует обучение (защита от мусора).';
+                }
+
+                document.getElementById('dash-model-version').innerText = data.activeModelVersion;
+                if (data.activeModelStatus === 'Active') {
+                    document.getElementById('dash-model-badge').innerHTML = '<span class="badge" style="background:#dcfce7; color:#166534; border:1px solid #bbf7d0;">Работает</span>';
+                } else if (data.activeModelStatus.startsWith('Failed') || data.activeModelStatus.startsWith('TrainingFailed')) {
+                    document.getElementById('dash-model-badge').innerHTML = `<span class="badge" style="background:#fee2e2; color:#991b1b; border:1px solid #fecaca;">Брак</span>`;
+                } else {
+                    document.getElementById('dash-model-badge').innerHTML = `<span class="badge" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;">${data.activeModelStatus}</span>`;
+                }
+
+                document.getElementById('dash-total-units').innerText = data.totalUnits;
+                document.getElementById('dash-total-vals').innerText = data.totalValuations;
+
+                try {
+                    if (data.activeModelMetrics && data.activeModelMetrics !== "{}") {
+                        const m = JSON.parse(data.activeModelMetrics);
+                        document.getElementById('dash-model-metrics').innerHTML = `
+                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Точность (R²):</span> <strong>${m.RSquared ? (m.RSquared * 100).toFixed(1) + '%' : 'N/A'}</strong></div>
+                            <div style="display:flex; justify-content:space-between;"><span>Ср. ошибка (MAPE):</span> <strong>${m.Mape ? (m.Mape * 100).toFixed(1) + '%' : 'N/A'}</strong></div>
+                        `;
+                    } else {
+                        document.getElementById('dash-model-metrics').innerHTML = '<span style="color:#94a3b8;">Метрики качества отсутствуют</span>';
+                    }
+                } catch(e) {}
+                if (window.lucide) window.lucide.createIcons();
+            })
+            .catch(e => console.error(e));
+    }
+
+    let searchTimer = null;
+    const searchInput = document.getElementById('api-search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => { apiCurrentPage = 1; fetchAndRenderTable(); }, 400);
+        });
+    }
+
+    const filterSelect = document.getElementById('api-filter-select');
+    if (filterSelect) {
+        filterSelect.addEventListener('change', () => { apiCurrentPage = 1; fetchAndRenderTable(); });
+    }
+
+    function resetApiFilters() {
+        if(document.getElementById('api-search-input')) document.getElementById('api-search-input').value = '';
+        if (filterSelect) filterSelect.value = '';
+        apiCurrentPage = 1;
+        fetchAndRenderTable();
+    }
+
+    function escHtml(str) {
+        if (!str) return '';
+        return str.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    function fetchAndRenderTable() {
+        if (currentTab === 'dashboard' || currentTab === 'diagnostics') return;
+
+        const searchInput = document.getElementById('api-search-input');
+        const search = searchInput ? searchInput.value : '';
+        const filterSelect = document.getElementById('api-filter-select');
+        let filter = filterSelect ? filterSelect.value : '';
+
+        const tbody = document.getElementById('valuation-tbody');
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 40px; color: #94a3b8;"><i data-lucide="loader" class="animate-spin" style="margin-bottom:8px;"></i><br>Загрузка данных по сети...</td></tr>';
+        if (window.lucide) window.lucide.createIcons();
+
+        fetch(`/api/Valuation/list/${currentTab}?page=${apiCurrentPage}&pageSize=${apiPageSize}&search=${encodeURIComponent(search)}&filterType=${encodeURIComponent(filter)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.items.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 40px; color: #94a3b8;"><i data-lucide="inbox" style="margin-bottom:8px; opacity: 0.5; width: 32px; height: 32px;"></i><br>Системные данные отсутствуют</td></tr>`;
+                } else {
+                    let html = '';
+                    data.items.forEach(item => {
+                        if (currentTab === 'models') html += renderModelRow(item);
+                        else if (currentTab === 'units') html += renderUnitRow(item);
+                        else if (currentTab === 'sales') html += renderSaleRow(item);
+                        else if (currentTab === 'results') html += renderResultRow(item);
+                        else if (currentTab === 'appeals') html += renderAppealRow(item);
+                    });
+                    tbody.innerHTML = html;
+                }
+
+                const totalPages = Math.ceil(data.total / apiPageSize);
+                document.getElementById('pagination-info').innerText = data.total > 0
+                    ? `Отображаются записи ${((apiCurrentPage - 1) * apiPageSize) + 1} - ${Math.min(apiCurrentPage * apiPageSize, data.total)} из совокупного массива ${data.total}`
+                    : `Системные данные отсутствуют`;
+
+                const btnHtml = `
+                    <button class="btn-outline" style="padding: 6px 12px; font-size: 0.8rem;" ${apiCurrentPage <= 1 ? 'disabled' : ''} onclick="apiCurrentPage--; fetchAndRenderTable();">Предыдущая</button>
+                    <button class="btn-outline" style="padding: 6px 12px; font-size: 0.8rem;" ${apiCurrentPage >= totalPages ? 'disabled' : ''} onclick="apiCurrentPage++; fetchAndRenderTable();">Следующая</button>
+                `;
+                document.getElementById('pagination-buttons').innerHTML = btnHtml;
+
+                if (window.lucide) window.lucide.createIcons();
+            })
+            .catch(e => {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 40px; color: #ef4444;"><i data-lucide="alert-triangle" style="margin-bottom:8px;"></i><br>Ошибка связи с сервером</td></tr>`;
+                if (window.lucide) window.lucide.createIcons();
+            });
+    }
+
+    // SOFT DELETE: Скрывает модель в архив
+    function deleteModel(id) {
+        if (!confirm('Вы уверены, что хотите скрыть эту модель в Архив? Исторические оценки, рассчитанные ей, останутся в системе.')) return;
+
+        fetch(`/api/Valuation/models/${id}`, { method: 'DELETE' })
+            .then(res => {
+                if (!res.ok) throw new Error('Ошибка перемещения модели в архив. Сервер вернул код ' + res.status);
+                fetchAndRenderTable();
+            })
+            .catch(err => alert(err.message));
+    }
+
+    function renderModelRow(item) {
+        const dateStr = new Date(item.trainingDate).toLocaleString('ru-RU', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
+        let isFailed = item.status !== 'Active';
+        let statusBadge = '';
+
+        if (!isFailed) {
+            statusBadge = '<span class="badge" style="background:#dcfce7; color:#166534; border:1px solid #bbf7d0;">Активна (Успешно)</span>';
+        } else {
+            let readableStatus = item.status;
+            if (item.status === 'TrainingFailed_LowAccuracy') readableStatus = 'Низкая точность';
+            if (item.status === 'Failed_OutliersDetected') readableStatus = 'Аномалии данных (IQR)';
+            if (item.status === 'Failed_InsufficientData') readableStatus = 'Мало данных';
+            if (item.status === 'Failed_CorruptedJson') readableStatus = 'Ошибка JSON';
+
+            statusBadge = `<span class="badge" style="background:#fee2e2; color:#991b1b; border:1px solid #fecaca;">Брак: ${readableStatus}</span>`;
+        }
+
+        let metricsHtml = '';
+        try {
+            if (item.metrics && item.metrics !== "{}") {
+                const m = JSON.parse(item.metrics);
+                if (m.RSquared !== undefined) {
+                     metricsHtml = `<div style="font-size: 0.8rem; background: #f8fafc; padding: 4px 8px; border-radius: 4px; display: inline-block; border: 1px solid #e2e8f0; margin-bottom: 4px;">R²: <strong>${(m.RSquared*100).toFixed(1)}%</strong> | MAPE: <strong>${(m.Mape*100).toFixed(1)}%</strong></div>`;
+                }
+            }
+        } catch(e) {}
+
+        let reasonHtml = '';
+        if (isFailed) {
+            reasonHtml = `<div style="font-size: 0.75rem; color: #b91c1c; background: #fef2f2; padding: 6px 8px; border-radius: 4px; border-left: 3px solid #ef4444; margin-top: 4px; line-height: 1.4;"><strong>Причина:</strong> ${escHtml(item.description)}</div>`;
+        } else {
+            reasonHtml = `<div style="font-size: 0.75rem; color: #64748b; margin-top: 4px;">${escHtml(item.description)}</div>`;
+        }
+
+        let actionsHtml = `
+            <button class="btn-outline" style="border-color: #3b82f6; color: #3b82f6; padding: 6px 10px; display:flex; align-items:center; gap:6px;" onclick="openAppraisalWizard('${item.id}', '${escHtml(item.version)}')" ${isFailed ? 'disabled title="Модель забракована, запуск невозможен"' : ''}>
+                <i data-lucide="play" style="width: 14px;"></i> Запуск
+            </button>
+            <button class="btn-icon" style="color: #ef4444; background: #fef2f2; border: 1px solid #fecaca; padding: 6px;" title="Скрыть модель в архив" onclick="deleteModel('${item.id}')">
+                <i data-lucide="archive" style="width: 16px; height: 16px;"></i>
+            </button>
+        `;
+
+        return `<tr>
+            <td style="vertical-align: top;">
+                <div class="td-flex">
+                    <div class="td-icon" style="background: #e0f2fe; color: #0284c7;"><i data-lucide="cpu"></i></div>
+                    <div>
+                        <div class="td-title">${escHtml(item.version)}</div>
+                        <div class="td-subtitle" style="font-family: monospace;">Ядро: ${escHtml(item.algorithm)}</div>
+                    </div>
+                </div>
+            </td>
+            <td style="max-width: 400px;">
+                <div style="margin-bottom: 6px;">${statusBadge}</div>
+                ${metricsHtml}
+                ${reasonHtml}
+            </td>
+            <td style="vertical-align: top;"><span class="badge" style="background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1;">${dateStr}</span></td>
+            <td style="vertical-align: top;">
+                <div style="display: flex; gap: 8px; justify-content: flex-end; align-items: center;">
+                    ${actionsHtml}
+                </div>
+            </td>
+        </tr>`;
+    }
+
+    function renderUnitRow(item) {
+        let charsHtml = '';
+        if (item.parsedCharacteristics) {
+            charsHtml = `<div style="display: flex; flex-wrap: wrap; gap: 6px; max-width: 350px;">`;
+            for(const [key, value] of Object.entries(item.parsedCharacteristics)) {
+                charsHtml += `<span style="background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569; font-size: 0.75rem; padding: 4px 8px; border-radius: 6px;"><span style="color: #94a3b8;">${escHtml(key)}:</span> <span style="font-weight: 600; color: #0f172a;">${escHtml(value)}</span></span>`;
+            }
+            charsHtml += `</div>`;
+        } else {
+            charsHtml = `<span style="color: #ef4444; font-size: 0.8rem; font-weight: 500;"><i data-lucide="alert-circle" style="width: 14px; vertical-align: sub;"></i> Характеристики не заданы</span>`;
+        }
+        const jsonEscaped = item.characteristicsJson ? item.characteristicsJson.replace(/'/g, "\\'") : '';
+        return `<tr>
+            <td>
+                <div class="td-flex">
+                    <div class="td-icon" style="background: #e0f2fe; color: #0369a1;"><i data-lucide="map-pin"></i></div>
+                    <div>
+                        <div class="td-title">${escHtml(item.baUnitName)}</div>
+                        <div class="td-subtitle" style="font-family: monospace;">Код учета: ${item.id.substring(0, 8)}</div>
+                    </div>
+                </div>
+            </td>
+            <td><span class="badge" style="background: #f8fafc; color: #334155; border: 1px solid #e2e8f0;">${escHtml(item.zoningStatus)}</span></td>
+            <td>${charsHtml}</td>
+            <td style="text-align: right; white-space: nowrap;">
+                <button class="btn-icon" title="Обновить профиль зонирования" onclick="openZoningModal('${item.id}', '${escHtml(item.zoningStatus)}')"><i data-lucide="layers"></i></button>
+                <button class="btn-icon" title="Редактировать матрицу характеристик" onclick="openCharacteristicsModal('${item.id}', '${item.characteristicsId || ''}', '${jsonEscaped}')"><i data-lucide="sliders"></i></button>
+            </td>
+        </tr>`;
+    }
+
+    function renderSaleRow(item) {
+        const isInvalid = item.validity !== 'ValidMarket';
+        const dateStr = new Date(item.transactionDate).toLocaleString('ru-RU', {day:'2-digit',month:'2-digit',year:'numeric'});
+        const priceStr = item.salePrice.toLocaleString('ru-RU');
+
+        let validityText = item.validity;
+        if (item.validity === 'InvalidOutlier') validityText = 'Аномалия (IQR-фильтр)';
+        if (item.validity === 'InvalidAffiliated') validityText = 'Аффилированность';
+        if (item.validity === 'InvalidForeclosure') validityText = 'Залог/Банкротство';
+
+        let badgeHtml = isInvalid
+            ? `<span class="badge" style="background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;"><i data-lucide="shield-alert" style="width:12px; margin-right:4px;"></i>Брак: ${validityText}</span>`
+            : `<span class="badge" style="background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;"><i data-lucide="check-circle" style="width:12px; margin-right:4px;"></i>Рыночная (Достоверная)</span>`;
+
+        let actionHtml = isInvalid
+            ? `<span style="font-size: 0.8rem; color: #94a3b8;">Исключена из ML</span>`
+            : `<button class="btn-outline" style="border-color: #ef4444; color: #ef4444; padding: 4px 8px; font-size: 0.75rem;" onclick="openInvalidateModal('${item.id}')">Выбраковать вручную</button>`;
+
+        return `<tr style="${isInvalid ? 'opacity: 0.6; background: #f8fafc;' : ''}">
+            <td>
+                <div class="td-title">${escHtml(item.baUnitName)}</div>
+                <div class="td-subtitle" style="font-family: monospace;">Индекс: ${item.valuationUnitId.substring(0, 8)}</div>
+            </td>
+            <td style="font-weight: 800; color: #166534; font-size: 1.1rem;">${priceStr} ₽</td>
+            <td style="font-size: 0.9rem;">${dateStr}</td>
+            <td>${badgeHtml}</td>
+            <td style="text-align: right;">${actionHtml}</td>
+        </tr>`;
+    }
+
+    function renderResultRow(item) {
+        const priceStr = item.assessedValue.toLocaleString('ru-RU');
+        const dateStr = new Date(item.valuationDate).toLocaleString('ru-RU', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+        const methodHtml = item.method === 'AutomatedMachineLearning'
+            ? `<span style="color: #3b82f6; font-weight: 600;"><i data-lucide="cpu" style="width: 14px; vertical-align: sub;"></i> CAMA Engine</span>`
+            : `<span style="color: #f59e0b; font-weight: 600;"><i data-lucide="user" style="width: 14px; vertical-align: sub;"></i> Ручная корректировка</span>`;
+
+        return `<tr>
+            <td>
+                <div class="td-title">${escHtml(item.baUnitName)}</div>
+                <div class="td-subtitle" style="font-family: monospace;">Код учета: ${item.id.substring(0, 8)}</div>
+            </td>
+            <td><span class="badge" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;">${escHtml(item.zoningStatus)}</span></td>
+            <td style="font-weight: 800; color: #0f172a; font-size: 1.2rem;">${priceStr} ₽</td>
+            <td>${methodHtml}</td>
+            <td>
+                <div style="font-size: 0.85rem; color: #0f172a;">${escHtml(item.modelVersion)}</div>
+                <div style="font-size: 0.75rem; color: #64748b;">${dateStr}</div>
+            </td>
+            <td style="text-align: right; white-space: nowrap;">
+                <button class="btn-outline" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openHistoryModal('${item.id}')">
+                    <i data-lucide="history" style="width: 14px;"></i> Журнал
+                </button>
+            </td>
+        </tr>`;
+    }
+
+    function renderAppealRow(item) {
+        const priceStr = item.currentAssessedValue.toLocaleString('ru-RU');
+        let badgeHtml = '';
+        if (item.status === 'Submitted') badgeHtml = `<span class="badge" style="background: #fef08a; color: #92400e; border: 1px solid #fde047;">Регистрация</span>`;
+        else if (item.status === 'UnderReview') badgeHtml = `<span class="badge" style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;">В комиссии</span>`;
+        else if (item.status === 'Resolved') badgeHtml = `<span class="badge" style="background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;">Удовлетворено</span>`;
+        else if (item.status === 'Rejected') badgeHtml = `<span class="badge" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;">Отклонено</span>`;
+        else badgeHtml = `<span class="badge" style="background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;">Судебное производство</span>`;
+
+        let actionHtml = (item.status === 'Submitted' || item.status === 'UnderReview')
+            ? `<button class="btn-outline" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openAppealModal('${item.id}', '${item.currentAssessedValue}')">Рассмотреть</button>`
+            : '';
+
+        return `<tr>
+            <td>
+                <div class="td-flex">
+                    <div class="td-icon" style="background: #fef3c7; color: #d97706;"><i data-lucide="scale"></i></div>
+                    <div>
+                        <div class="td-title">${escHtml(item.baUnitName)}</div>
+                        <div class="td-subtitle">Субъект: ${escHtml(item.applicantName)}</div>
+                    </div>
+                </div>
+            </td>
+            <td style="font-size: 0.85rem; color: #475569; max-width: 250px; white-space: normal;">${escHtml(item.reason)}</td>
+            <td style="font-weight: 700; color: #0f172a;">${priceStr} ₽</td>
+            <td>${badgeHtml}</td>
+            <td style="text-align: right;">${actionHtml}</td>
+        </tr>`;
+    }
+
+    // --- Обработчики специфичных кнопок ---
+    function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+    function openZoningModal(unitId, currentZone) {
+        document.getElementById('zoning-unit-id').value = unitId;
+        document.getElementById('zoning-status-select').value = currentZone;
+        openModal('modal-zoning-edit');
+    }
+
+    function openCharacteristicsModal(unitId, charId, jsonString) {
+        document.getElementById('char-unit-id').value = unitId;
+        document.getElementById('char-char-id').value = charId || '';
+
+        document.getElementById('char-area').value = '';
+        document.getElementById('char-year').value = '';
+        document.getElementById('char-floor').value = '';
+        document.getElementById('char-distance').value = '';
+        document.getElementById('char-rooms').value = '';
+
+        if (jsonString) {
+            try {
+                const data = JSON.parse(jsonString);
+                document.getElementById('char-area').value = data.Area || '';
+                document.getElementById('char-year').value = data.YearBuilt || '';
+                document.getElementById('char-floor').value = data.Floor || '';
+                document.getElementById('char-distance').value = data.DistanceToCenterKm || '';
+                document.getElementById('char-rooms').value = data.RoomsCount || '';
+            } catch (e) { console.error('JSON Parse error', e); }
+        }
+        openModal('modal-char-edit');
+    }
+
+    function syncJson() {
+        const data = {
+            Area: parseFloat(document.getElementById('char-area').value) || null,
+            YearBuilt: parseFloat(document.getElementById('char-year').value) || null,
+            Floor: parseFloat(document.getElementById('char-floor').value) || null,
+            DistanceToCenterKm: parseFloat(document.getElementById('char-distance').value) || null,
+            RoomsCount: parseFloat(document.getElementById('char-rooms').value) || null
+        };
+        const jsonString = JSON.stringify(data);
+
+        const isUpdate = !!document.getElementById('char-char-id').value;
+        if (isUpdate) {
+            document.getElementById('char-json-update-hidden').value = jsonString;
+            document.getElementById('char-json-add-hidden').value = '';
+            document.getElementById('char-form').action = '?handler=UpdateCharacteristic';
+        } else {
+            document.getElementById('char-json-add-hidden').value = jsonString;
+            document.getElementById('char-json-update-hidden').value = '';
+            document.getElementById('char-form').action = '?handler=AddCharacteristic';
+        }
+    }
+
+    function openInvalidateModal(id) {
+        document.getElementById('invalidate-sale-id').value = id;
+        openModal('modal-sale-invalidate');
+    }
+
+    function openAppealModal(id, currentPrice) {
+        document.getElementById('appeal-id-input').value = id;
+        document.getElementById('appeal-new-price-input').value = currentPrice;
+        toggleNewPriceInput();
+        openModal('modal-appeal-resolve');
+    }
+
+    function toggleNewPriceInput() {
+        const status = document.getElementById('appeal-status-select').value;
+        const container = document.getElementById('new-price-container');
+        if (status === 'Resolved') {
+            container.style.display = 'block';
+            document.getElementById('appeal-new-price-input').required = true;
+        } else {
+            container.style.display = 'none';
+            document.getElementById('appeal-new-price-input').required = false;
+        }
+    }
+
+    function openHistoryModal(id) {
+        openModal('modal-valuation-history');
+        document.getElementById('history-loader').style.display = 'block';
+        document.getElementById('history-timeline').innerHTML = '';
+
+        fetch('/api/Valuation/valuations/' + id + '/history')
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('history-loader').style.display = 'none';
+                let html = '';
+                if (data.length === 0) {
+                    html = '<div style="text-align: center; color: #94a3b8; padding: 20px;">История пуста</div>';
+                } else {
+                    data.forEach(item => {
+                        const from = new Date(item.validFrom).toLocaleString('ru-RU');
+                        const to = item.isCurrent ? "По настоящее время" : new Date(item.validTo).toLocaleString('ru-RU');
+                        const badge = item.isCurrent ? '<span class="badge badge-success">Актуально</span>' : '<span class="badge" style="background:#f1f5f9;">Архив</span>';
+                        const methodText = item.method === 'AutomatedMachineLearning' ? 'ML.NET CAMA Engine' : 'Индивидуальная ручная оценка';
+
+                        html += `
+                            <div style="background: white; padding: 16px; border: 1px solid #e2e8f0; border-radius: 8px; border-left: 4px solid ${item.isCurrent ? '#10b981' : '#cbd5e1'};">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                    <div style="font-weight: 700; color: #0f172a; font-size: 1.1rem;">${item.assessedValue.toLocaleString('ru-RU')} ₽</div>
+                                    <div>${badge}</div>
+                                </div>
+                                <div style="font-size: 0.85rem; color: #64748b;">
+                                    <i data-lucide="cpu" style="width: 14px; vertical-align: text-bottom;"></i> ${methodText}<br/>
+                                    <i data-lucide="clock" style="width: 14px; vertical-align: text-bottom; margin-top: 4px;"></i> ${from} &mdash; ${to}
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+                document.getElementById('history-timeline').innerHTML = html;
+                lucide.createIcons();
+            })
+            .catch(err => {
+                document.getElementById('history-loader').style.display = 'none';
+                document.getElementById('history-timeline').innerHTML = '<div style="color: #ef4444; text-align: center;">Ошибка загрузки истории</div>';
+            });
+    }
+
+    // --- Логика Wizard для Массовой Оценки ---
+    let apprCurrentWizardStep = 1;
+    const apprTotalWizardSteps = 3;
+
+    function openAppraisalWizard(modelId, version) {
+        document.getElementById('wiz-model-id').value = modelId;
+        document.getElementById('wiz-model-text').value = version;
+        apprCurrentWizardStep = 1;
+        updateAppraisalWizardUI();
+        openModal('modal-appraisal-wizard');
+    }
+
+    function appraisalWizardNext() {
+        let stepContent = document.getElementById('appr-step-content-' + apprCurrentWizardStep);
+        let inputs = stepContent.querySelectorAll('input[required], select[required]');
+        for (let input of inputs) {
+            if (!input.value && input.type !== 'hidden') {
+                input.reportValidity();
+                return;
+            }
+        }
+        if (apprCurrentWizardStep < apprTotalWizardSteps) {
+            apprCurrentWizardStep++;
+            updateAppraisalWizardUI();
+        }
+    }
+
+    function appraisalWizardPrev() {
+        if (apprCurrentWizardStep > 1) {
+            apprCurrentWizardStep--;
+            updateAppraisalWizardUI();
+        }
+    }
+
+    function updateAppraisalWizardUI() {
+        for (let i = 1; i <= apprTotalWizardSteps; i++) {
+            let nav = document.getElementById('appr-step-nav-' + i);
+            let content = document.getElementById('appr-step-content-' + i);
+            nav.classList.remove('active', 'completed');
+            if (i < apprCurrentWizardStep) nav.classList.add('completed');
+            else if (i === apprCurrentWizardStep) nav.classList.add('active');
+            content.classList.remove('active');
+            if (i === apprCurrentWizardStep) content.classList.add('active');
+        }
+        document.getElementById('appr-wiz-btn-prev').style.display = apprCurrentWizardStep > 1 ? 'inline-block' : 'none';
+        document.getElementById('appr-wiz-btn-next').style.display = apprCurrentWizardStep < apprTotalWizardSteps ? 'inline-flex' : 'none';
+        document.getElementById('appr-wiz-btn-submit').style.display = apprCurrentWizardStep === apprTotalWizardSteps ? 'inline-flex' : 'none';
+    }
+
+    // --- Системный справочник (Lookup) ---
+    let dictTargetId = '';
+    let dictTargetText = '';
+    let dictUrl = '';
+    let dictSearchTimer = null;
+
+    function openDictionary(url, targetId, targetText, title) {
+        dictUrl = url;
+        dictTargetId = targetId;
+        dictTargetText = targetText;
+        document.getElementById('lookup-title').innerHTML = `<i data-lucide="database" style="margin-right:8px; color:#10b981;"></i> ${title}`;
+        document.getElementById('lookup-search').value = '';
+        openModal('modal-lookup');
+        lucide.createIcons();
+        setTimeout(() => document.getElementById('lookup-search').focus(), 100);
+        executeDictionarySearch('');
+    }
+
+    function closeDictionary() {
+        closeModal('modal-lookup');
+    }
+
+    function delaySearchDictionary() {
+        clearTimeout(dictSearchTimer);
+        dictSearchTimer = setTimeout(() => {
+            executeDictionarySearch(document.getElementById('lookup-search').value);
+        }, 300);
+    }
+
+    async function executeDictionarySearch(query) {
+        const loader = document.getElementById('lookup-loader');
+        const empty = document.getElementById('lookup-empty');
+        const tbody = document.getElementById('lookup-results');
+        loader.style.display = 'block';
+        empty.style.display = 'none';
+        tbody.innerHTML = '';
+        try {
+            const fetchUrl = dictUrl + '?q=' + encodeURIComponent(query || '');
+            const res = await fetch(fetchUrl);
+            if (!res.ok) { const errText = await res.text(); throw new Error(`Код состояния ${res.status}: ${errText}`); }
+            const data = await res.json();
+            loader.style.display = 'none';
+            if (!data || data.length === 0) {
+                empty.style.display = 'block';
+                document.getElementById('lookup-empty-text').innerText = "Информация по вашему запросу не найдена. Измените критерии поиска.";
+                return;
+            }
+            data.forEach(item => {
+                const rawText = item.text ? item.text.toString() : "Идентификатор отсутствует";
+                const safeText = rawText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+                const row = document.createElement('tr');
+                row.onclick = () => selectDictionaryItem(item.id, rawText);
+                row.style.cursor = 'pointer';
+                row.innerHTML = `<td style="padding: 12px 20px; border-bottom: 1px solid #f1f5f9;"><div style="display:flex; align-items:center;"><i data-lucide="file-check" style="width:16px; margin-right:12px; color:#94a3b8; flex-shrink:0;"></i> <span style="white-space: pre-wrap; font-size: 0.9rem;">${safeText}</span></div></td>`;
+                tbody.appendChild(row);
+            });
+            lucide.createIcons();
+        } catch (e) {
+            loader.style.display = 'none';
+            empty.style.display = 'block';
+            document.getElementById('lookup-empty-text').innerHTML = `<span style='color:#ef4444;'>Произошел системный сбой при обращении к серверу:<br>${e.message}</span>`;
+        }
+    }
+
+    function selectDictionaryItem(id, text) {
+        const inputId = document.getElementById(dictTargetId);
+        const inputText = document.getElementById(dictTargetText);
+        inputId.value = id;
+        inputText.value = text;
+        inputText.setCustomValidity('');
+        closeDictionary();
+    }
+</script>

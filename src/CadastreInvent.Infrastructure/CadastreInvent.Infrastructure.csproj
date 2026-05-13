@@ -1,0 +1,41 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<ItemGroup>
+		<Compile Remove="Persistence\Interceptors\**" />
+		<EmbeddedResource Remove="Persistence\Interceptors\**" />
+		<None Remove="Persistence\Interceptors\**" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\CadastreInvent.Shared\CadastreInvent.Shared.csproj" />
+		<ProjectReference Include="..\CadastreInvent.Registry.Domain\CadastreInvent.Registry.Domain.csproj" />
+		<ProjectReference Include="..\CadastreInvent.Valuation.Domain\CadastreInvent.Valuation.Domain.csproj" />
+		<ProjectReference Include="..\CadastreInvent.Inspection.Domain\CadastreInvent.Inspection.Domain.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="AWSSDK.S3" Version="3.7.307.27" />
+		<PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="NetTopologySuite" Version="2.5.0" />
+		<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.0" />
+		<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite" Version="9.0.0" />
+		<PackageReference Include="ProjNET" Version="2.1.0" />
+		<PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.3.0" />
+		<PackageReference Include="ClosedXML" Version="0.102.2" />
+		<PackageReference Include="Dapper" Version="2.1.28" />
+		<PackageReference Include="QuestPDF" Version="2023.12.6" />
+		
+	</ItemGroup>
+
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+
+</Project>

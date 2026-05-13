@@ -1,0 +1,462 @@
+﻿@page
+@model CadastreInvent.Api.Pages.AdminModel
+@{
+    ViewData["Title"] = "Панель Управления";
+    ViewData["ActivePage"] = "Admin";
+}
+
+<style>
+    .db-card {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 24px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+        .db-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+    .db-icon-wrapper {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .db-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: 4px;
+    }
+
+    .db-desc {
+        font-size: 0.9rem;
+        color: #64748b;
+        line-height: 1.5;
+        flex: 1;
+    }
+
+    .gen-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.9);
+        backdrop-filter: blur(8px);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        color: white;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s;
+    }
+
+        .gen-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+    .gen-loader {
+        width: 64px;
+        height: 64px;
+        border: 4px solid rgba(255,255,255,0.1);
+        border-top-color: #3b82f6;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 24px;
+    }
+
+    .gen-step {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #f8fafc;
+        margin-bottom: 8px;
+        text-align: center;
+    }
+
+    .gen-substep {
+        font-size: 0.9rem;
+        color: #94a3b8;
+        text-align: center;
+    }
+</style>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Управление ИС и Безопасность</h1>
+        <p class="page-subtitle">Штат сотрудников, матрица доступов и администрирование хранилища</p>
+    </div>
+    @if (Model.Tab == "users")
+    {
+        <button class="btn-primary" onclick="openModal('modal-user')">
+            <i data-lucide="user-plus"></i> Регистрация сотрудника
+        </button>
+    }
+</div>
+
+@if (!string.IsNullOrEmpty(Model.StatusMessage))
+{
+    <div class="alert alert-info" style="@(Model.StatusMessage.Contains("Ошибка") ? "background: #fef2f2; color: #991b1b; border-color: #fecaca;" : "background: #f0fdf4; color: #166534; border-color: #bbf7d0;")">
+        <i data-lucide="@(Model.StatusMessage.Contains("Ошибка") ? "alert-triangle" : "check-circle")" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 8px;"></i>
+        <span style="vertical-align: middle;">@Model.StatusMessage</span>
+    </div>
+}
+
+<div class="tabs">
+    <a href="/Admin?tab=users" class="tab-link @(Model.Tab == "users" ? "active" : "")">Штат сотрудников</a>
+    <a href="/Admin?tab=roles" class="tab-link @(Model.Tab == "roles" ? "active" : "")">Матрица доступов</a>
+    <a href="/Admin?tab=audit" class="tab-link @(Model.Tab == "audit" ? "active" : "")">Аудит (Логи)</a>
+    <a href="/Admin?tab=database" class="tab-link @(Model.Tab == "database" ? "active" : "")" style="border-left: 2px solid #e2e8f0; padding-left: 16px; margin-left: 8px;"><i data-lucide="hard-drive" style="width:16px; margin-right:6px; vertical-align:text-bottom;"></i>База данных</a>
+    <a href="/Admin?tab=testing" class="tab-link @(Model.Tab == "testing" ? "active" : "")"><i data-lucide="flask-conical" style="width:16px; margin-right:6px; vertical-align:text-bottom;"></i>Тестирование системы</a>
+</div>
+
+@if (Model.Tab == "users")
+{
+    <div class="table-container">
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Сотрудник (ФИО)</th>
+                        <th>Учетная запись (Логин)</th>
+                        <th>Должностная роль</th>
+                        <th>Статус доступа</th>
+                        <th style="text-align: right;">Управление</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var user in Model.UsersList)
+                    {
+                        <tr style="@(!user.IsActive ? "opacity: 0.7; background: #f8fafc;" : "")">
+                            <td>
+                                <div class="td-flex">
+                                    <div class="td-icon icon-bg-blue" style="background: #e0f2fe; color: #0369a1;"><i data-lucide="user"></i></div>
+                                    <div>
+                                        <div class="td-title">@user.Username</div>
+                                        <div class="td-subtitle">Код: @user.Id.ToString().Substring(0, 8)...</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td style="color: #475569; font-weight: 500;">@user.Email</td>
+                            <td><span class="badge" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;">@user.RoleName</span></td>
+                            <td>
+                                @if (user.IsActive)
+                                {
+                                    <span class="badge badge-success">Действующий</span>
+                                }
+                                else
+                                {
+                                    <span class="badge" style="background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca;">Доступ закрыт</span>
+                                }
+                            </td>
+                            <td style="text-align: right; white-space: nowrap;">
+                                <button class="btn-icon" title="Сброс пароля" onclick="openPasswordModal('@user.Id')"><i data-lucide="key"></i></button>
+                                <button class="btn-icon" title="Назначить другую роль" onclick="openRoleModal('@user.Id', '@user.RoleId')"><i data-lucide="shield-alert"></i></button>
+                                <form method="post" asp-page-handler="ToggleStatus" style="display:inline;">
+                                    <input type="hidden" name="userId" value="@user.Id" />
+                                    <input type="hidden" name="activate" value="@(user.IsActive ? "false" : "true")" />
+                                    <button type="submit" class="btn-icon @(user.IsActive ? "danger" : "")" title="@(user.IsActive ? "Блокировать учетную запись" : "Восстановить доступ")" style="@(user.IsActive ? "color: #ef4444;" : "color: #10b981;")"><i data-lucide="@(user.IsActive ? "lock" : "unlock")"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Модалки пользователей -->
+    <div id="modal-user" class="modal-overlay hidden"><div class="modal-container"><form method="post" asp-page-handler="CreateUser"><input type="hidden" name="Tab" value="users" /><div class="modal-header"><h3>Оформление нового сотрудника</h3><button type="button" class="btn-icon" onclick="closeModal('modal-user')"><i data-lucide="x"></i></button></div><div class="modal-body"><div class="form-group"><label class="form-label">Фамилия Имя Отчество</label><input asp-for="NewUser.Username" class="form-control" required /></div><div class="form-group"><label class="form-label">Корпоративный адрес (Логин)</label><input asp-for="NewUser.Email" type="email" class="form-control" required /></div><div class="form-group"><label class="form-label">Временный пароль для входа</label><input asp-for="NewUser.Password" type="password" class="form-control" required /></div><div class="form-group"><label class="form-label">Должность в системе</label><select asp-for="NewUser.RoleId" class="form-control" required>@foreach (var r in Model.RolesList) {
+    <option value="@r.Id">@r.Name</option>
+}
+</select></div></div><div class="modal-footer"><button type="button" class="btn-outline" onclick="closeModal('modal-user')">Отмена</button><button type="submit" class="btn-primary">Зарегистрировать</button></div></form></div></div>
+<div id="modal-role" class="modal-overlay hidden"><div class="modal-container"><form method="post" asp-page-handler="ChangeRole"><input type="hidden" name="Tab" value="users" /><input type="hidden" asp-for="ChangeRoleUserId" id="role-user-id" /><div class="modal-header"><h3>Перевод на другую должность</h3><button type="button" class="btn-icon" onclick="closeModal('modal-role')"><i data-lucide="x"></i></button></div><div class="modal-body"><div class="form-group"><label class="form-label">Новая должность в системе</label><select asp-for="ChangeRoleNewRoleId" id="role-select" class="form-control" required>@foreach (var r in Model.RolesList) {
+<option value="@r.Id">@r.Name</option>
+}
+</select></div></div><div class="modal-footer"><button type="button" class="btn-outline" onclick="closeModal('modal-role')">Отмена</button><button type="submit" class="btn-primary">Назначить права</button></div></form></div></div>
+<div id="modal-password" class="modal-overlay hidden"><div class="modal-container"><form method="post" asp-page-handler="ChangePassword"><input type="hidden" name="Tab" value="users" /><input type="hidden" asp-for="ChangePasswordUserId" id="pwd-user-id" /><div class="modal-header"><h3>Сброс пароля сотрудника</h3><button type="button" class="btn-icon" onclick="closeModal('modal-password')"><i data-lucide="x"></i></button></div><div class="modal-body"><div class="form-group"><label class="form-label">Новый временный пароль</label><input asp-for="NewPassword" type="password" class="form-control" required /></div></div><div class="modal-footer"><button type="button" class="btn-outline" onclick="closeModal('modal-password')">Отмена</button><button type="submit" class="btn-primary">Установить пароль</button></div></form></div></div>
+}
+else if (Model.Tab == "roles")
+{
+    <div class="alert alert-info" style="background: #f8fafc; border: 1px solid #e2e8f0; color: #334155; margin-bottom: 20px;">
+        <i data-lucide="shield" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 8px;"></i>
+        <span style="vertical-align: middle;">Управление доступом осуществляется через <b>реляционную матрицу</b>. Изменения вступают в силу немедленно для всех сотрудников выбранной должности. В системе жестко зафиксированы 3 структурные роли.</span>
+    </div>
+    <form method="post" asp-page-handler="UpdateMatrix">
+        <input type="hidden" name="Tab" value="roles" />
+        <div class="table-container">
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 40%;">Программный модуль / Действие</th>
+                            @foreach (var role in Model.RolesList)
+                            {
+                                <th style="text-align: center; background: #f8fafc; border-left: 1px solid #e2e8f0;">@role.Name</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var perm in Model.PermissionDescriptions)
+                        {
+                            <tr>
+                                <td>
+                                    <div style="font-weight: 600; color: #334155; font-size: 0.85rem;">@perm.Value</div>
+                                    <div style="font-family: monospace; font-size: 0.7rem; color: #94a3b8; margin-top: 2px;">@perm.Key</div>
+                                </td>
+                                @foreach (var role in Model.RolesList)
+                                {
+                                    bool hasPerm = role.Permissions.Any(p => p.Permission == perm.Key);
+                                    <td style="text-align: center; border-left: 1px solid #e2e8f0; vertical-align: middle;">
+                                        <label style="display: flex; justify-content: center; align-items: center; cursor: pointer; width: 100%; height: 100%; min-height: 40px; margin: 0;">
+                                            <input type="checkbox" name="SelectedPermissions" value="@(role.Id)|@perm.Key" @(hasPerm ? "checked" : "") style="width: 20px; height: 20px; accent-color: #3b82f6; cursor: pointer;" />
+                                        </label>
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div style="padding: 16px 24px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; background: #f8fafc;">
+                <button type="submit" class="btn-primary" style="background: #0f172a; border: none; padding: 12px 24px; font-size: 1rem;"><i data-lucide="save" style="margin-right: 8px;"></i> Сохранить матрицу политик</button>
+            </div>
+        </div>
+    </form>
+}
+else if (Model.Tab == "audit")
+{
+    <div class="table-container">
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr><th>Временная метка (UTC)</th><th>Действие в реестре</th><th>Слепок Сущности (Тип и Код)</th><th>Инициатор (Код)</th><th>Изменения (Сырые данные)</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var log in Model.AuditLogsList)
+                    {
+                        <tr>
+                            <td style="font-size: 0.85rem; color: #64748b;">@log.Timestamp.ToString("dd.MM.yyyy HH:mm:ss")</td>
+                            <td>
+                                @if (log.Action == "Added")
+                                {
+                                    <span class="badge badge-success">Внесение</span>
+                                }
+                                else if (log.Action == "Modified")
+                                {
+
+                                    <span class="badge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">Модификация</span>
+                                }
+                                else if (log.Action == "Deleted")
+                                {
+
+                                    <span class="badge" style="background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca;">Удаление</span>
+                                }
+                                else
+                                {
+
+                                    <span class="badge" style="background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;">@log.Action</span>
+                                }
+                            </td>
+                            <td><div class="td-title" style="font-size: 0.85rem;">@log.EntityName</div><div class="td-subtitle" style="font-size: 0.75rem; font-family: monospace;">@log.EntityId.ToString().Substring(0, 8)...</div></td>
+                            <td style="font-size: 0.85rem; font-family: monospace; color: #3b82f6;">@(log.UserId != Guid.Empty ? log.UserId.ToString().Substring(0, 8) : "Служба Системы")</td>
+                            <td style="font-size: 0.75rem; color: #64748b; max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="@log.ChangesJson">@log.ChangesJson</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+else if (Model.Tab == "database")
+{
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px;">
+
+        <!-- КАРТОЧКА 1: БЭКАП -->
+        <div class="db-card">
+            <div style="display:flex; gap: 16px; align-items:flex-start;">
+                <div class="db-icon-wrapper" style="background: #e0f2fe; color: #0284c7;"><i data-lucide="download-cloud" style="width: 24px; height: 24px;"></i></div>
+                <div style="flex: 1;">
+                    <div class="db-title">Резервное копирование</div>
+                    <div class="db-desc">Сохранение всей информации (объекты недвижимости, координаты контуров, история оценок) в единый файл для защиты от потери данных.</div>
+                </div>
+            </div>
+            <form method="post" asp-page-handler="ExportBackup">
+                <input type="hidden" name="Tab" value="database" />
+                <button type="submit" class="btn-outline" style="width: 100%; border-color: #0284c7; color: #0284c7;">
+                    <i data-lucide="save"></i> Выгрузить копию данных
+                </button>
+            </form>
+        </div>
+
+        <!-- КАРТОЧКА 2: ОЧИСТКА БД -->
+        <div class="db-card" style="border-color: #fecaca; background: #fffafa;">
+            <div style="display:flex; gap: 16px; align-items:flex-start;">
+                <div class="db-icon-wrapper" style="background: #fee2e2; color: #dc2626;"><i data-lucide="flame" style="width: 24px; height: 24px;"></i></div>
+                <div style="flex: 1;">
+                    <div class="db-title" style="color: #991b1b;">Полная очистка реестров</div>
+                    <div class="db-desc" style="color: #b91c1c;">Безвозвратное удаление всех кадастровых записей, границ участков и истории проверок. Учетные записи сотрудников не удаляются.</div>
+                </div>
+            </div>
+            <form method="post" asp-page-handler="WipeDatabase" onsubmit="return confirm('ВНИМАНИЕ! Это действие полностью очистит реестр. Вы уверены, что хотите продолжить?');">
+                <input type="hidden" name="Tab" value="database" />
+                <button type="submit" class="btn-primary" style="width: 100%; background: #dc2626; box-shadow: none;">
+                    <i data-lucide="alert-octagon"></i> Уничтожить данные реестров
+                </button>
+            </form>
+        </div>
+
+    </div>
+}
+
+else if (Model.Tab == "testing")
+{
+    <div class="alert alert-info" style="background: #f8fafc; border: 1px solid #e2e8f0; color: #334155; margin-bottom: 20px;">
+        <i data-lucide="flask-conical" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 8px;"></i>
+        <span style="vertical-align: middle;">Модуль предназначен для наполнения системы реалистичными данными. Сначала необходимо сгенерировать базовый ЕГРН (контуры и субъекты), а затем на их основе сформировать обучающую выборку для нейросети (CAMA).</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px;">
+
+        <!-- КАРТОЧКА 1: ГЕНЕРАЦИЯ ЕГРН -->
+        <div class="db-card">
+            <div style="display:flex; gap: 16px; align-items:flex-start;">
+                <div class="db-icon-wrapper" style="background: #e0f2fe; color: #0284c7;"><i data-lucide="map" style="width: 24px; height: 24px;"></i></div>
+                <div style="flex: 1;">
+                    <div class="db-title">Наполнение ЕГРН</div>
+                    <div class="db-desc">Создание от 100 до 200 базовых объектов недвижимости: физические контуры (с привязкой к Москве), адреса, правообладатели (ООО, Физлица) и документы-основания.</div>
+                </div>
+            </div>
+            <button type="button" class="btn-primary" style="width: 100%; background: #0284c7; box-shadow: 0 4px 12px rgba(2,132,199,0.3);" onclick="startRegistryGeneration()">
+                <i data-lucide="database"></i> Сгенерировать реестр
+            </button>
+        </div>
+
+        <!-- КАРТОЧКА 2: ГЕНЕРАЦИЯ ДАННЫХ ДЛЯ ML -->
+        <div class="db-card">
+            <div style="display:flex; gap: 16px; align-items:flex-start;">
+                <div class="db-icon-wrapper" style="background: #dcfce7; color: #166534;"><i data-lucide="brain-circuit" style="width: 24px; height: 24px;"></i></div>
+                <div style="flex: 1;">
+                    <div class="db-title">Генерация обучающей выборки</div>
+                    <div class="db-desc">Система выберет 20-30 неоцененных объектов из ЕГРН, создаст для них реалистичные матрицы характеристик и зарегистрирует рыночные сделки. Данные оптимизированы для обучения ML.</div>
+                </div>
+            </div>
+            <button type="button" class="btn-primary" style="width: 100%; background: #10b981; box-shadow: 0 4px 12px rgba(16,185,129,0.3);" onclick="startValuationGeneration()">
+                <i data-lucide="line-chart"></i> Сформировать сделки
+            </button>
+        </div>
+
+    </div>
+
+    <!-- Формы для AJAX запросов генерации -->
+    <form id="generateRegistryForm" method="post" asp-page-handler="GenerateRegistrySeed" style="display:none;"><input type="hidden" name="Tab" value="testing" /></form>
+    <form id="generateValuationForm" method="post" asp-page-handler="GenerateValuationSeed" style="display:none;"><input type="hidden" name="Tab" value="testing" /></form>
+
+    <!-- Оверлей загрузки -->
+    <div id="genOverlay" class="gen-overlay">
+        <div class="gen-loader"></div>
+        <div class="gen-step" id="genStep">Инициализация процесса...</div>
+        <div class="gen-substep" id="genSubstep">Подготовка базы данных...</div>
+    </div>
+}
+
+<script>
+    function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+    function openRoleModal(userId, currentRoleId) {
+        document.getElementById('role-user-id').value = userId;
+        document.getElementById('role-select').value = currentRoleId;
+        openModal('modal-role');
+    }
+
+    function openPasswordModal(userId) {
+        document.getElementById('pwd-user-id').value = userId;
+        openModal('modal-password');
+    }
+
+    async function executeGeneration(formId, stepsTextArray, confirmMsg) {
+        if(!confirm(confirmMsg)) return;
+
+        const overlay = document.getElementById('genOverlay');
+        const stepText = document.getElementById('genStep');
+        const subStepText = document.getElementById('genSubstep');
+        overlay.classList.add('active');
+
+        let stepIndex = 0;
+        const interval = setInterval(() => {
+            if(stepIndex < stepsTextArray.length) {
+                stepText.innerText = stepsTextArray[stepIndex];
+                subStepText.innerText = `Выполнение системной транзакции...`;
+                stepIndex++;
+            }
+        }, 800);
+
+        try {
+            const form = document.getElementById(formId);
+            const formData = new FormData(form);
+
+            const response = await fetch(form.action, {
+                method: 'POST',
+                body: formData
+            });
+
+            clearInterval(interval);
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                stepText.innerText = `Успешно создано ${result.count} записей!`;
+                subStepText.innerText = "Обновление интерфейса...";
+                stepText.style.color = "#10b981";
+                document.querySelector('.gen-loader').style.borderColor = "#10b981";
+                document.querySelector('.gen-loader').style.animation = "none";
+
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                throw new Error(result.error || "Сбой при генерации");
+            }
+        } catch (e) {
+            clearInterval(interval);
+            stepText.innerText = "Операция прервана";
+            subStepText.innerText = e.message;
+            stepText.style.color = "#ef4444";
+            document.querySelector('.gen-loader').style.display = "none";
+            setTimeout(() => overlay.classList.remove('active'), 4000);
+        }
+    }
+
+    function startRegistryGeneration() {
+        const steps = [
+            "Создание полигонов на карте...",
+            "Регистрация имущественных комплексов...",
+            "Генерация юридических лиц...",
+            "Привязка документов-оснований...",
+            "Завершение сохранения в PostGIS..."
+        ];
+        executeGeneration('generateRegistryForm', steps, 'Запустить автоматическое наполнение ЕГРН?');
+    }
+
+    function startValuationGeneration() {
+        const steps = [
+            "Поиск неоцененных объектов в ЕГРН...",
+            "Постановка объектов на оценку...",
+            "Формирование матрицы характеристик...",
+            "Симуляция рыночных сделок...",
+            "Запись транзакций в реестр..."
+        ];
+        executeGeneration('generateValuationForm', steps, 'Запустить генерацию сделок для алгоритмов оценки?');
+    }
+</script>

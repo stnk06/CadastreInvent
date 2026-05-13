@@ -1,0 +1,438 @@
+﻿@page
+@model CadastreInvent.Api.Pages.ImportModel
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Массовый импорт объектов реестра";
+}
+
+<style>
+    /* Адаптация AG Grid под глобальный дизайн системы */
+    .ag-theme-alpine {
+        --ag-font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        --ag-row-height: 56px; /* Значительно увеличенная высота строки */
+        border: none;
+    }
+
+    .row-error {
+        background-color: #fef2f2 !important;
+    }
+
+    .row-duplicate {
+        background-color: #fefce8 !important;
+    }
+
+    /* Отдельный стиль для выравнивания стандартных элементов внутри колонки статусов */
+    .status-cell .ag-cell-value {
+        display: flex;
+        align-items: center;
+        height: 100%;
+        margin: 0;
+    }
+
+    .history-table th {
+        background: #f8fafc;
+        color: var(--text-muted);
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        padding: 12px 16px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-light);
+    }
+
+    .history-table td {
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border-light);
+        font-size: 0.9rem;
+        color: var(--text-main);
+    }
+
+    .history-table tr:hover {
+        background: #f8fafc;
+    }
+</style>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Импорт объектов недвижимости</h1>
+        <p class="page-subtitle">Загрузите файл Excel (.xlsx) для массового добавления контуров и базовых объектов в реестр.</p>
+    </div>
+    <div>
+        <a href="/Registry" class="btn-outline" style="text-decoration: none;">
+            <i data-lucide="arrow-left"></i> Вернуться в реестр
+        </a>
+    </div>
+</div>
+
+<!-- ШАГ 1: Зона загрузки файла -->
+<div class="card" id="uploadStep" style="margin-bottom: 24px;">
+    <div id="dropzone" style="border: 2px dashed var(--border-light); border-radius: 12px; padding: 48px 24px; text-align: center; cursor: pointer; position: relative; transition: all 0.2s; background: var(--bg-body);">
+        <input type="file" id="fileInput" accept=".xlsx,.csv" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10;" />
+
+        <div class="card-icon blue" style="margin: 0 auto 16px auto;">
+            <i data-lucide="upload-cloud"></i>
+        </div>
+
+        <h3 style="font-size: 1.1rem; font-weight: 600; color: var(--text-main); margin-bottom: 8px;">Нажмите или перетащите файл сюда</h3>
+        <p style="color: var(--text-muted); margin-bottom: 16px; font-size: 0.9rem;">Поддерживается формат Excel (.xlsx) и CSV</p>
+
+        <div class="badge" style="background: var(--bg-body); color: var(--text-muted); border: 1px solid var(--border-light);">
+            <i data-lucide="info" style="width: 14px; margin-right: 6px;"></i> Структура: Кад. номер | Тип | Площадь | Адрес | WKT
+        </div>
+    </div>
+
+    <!-- Индикатор загрузки -->
+    <div id="loadingIndicator" style="display: none; text-align: center; padding: 24px; color: var(--text-muted);">
+        <i data-lucide="loader" style="animation: spin 1s linear infinite; width: 32px; height: 32px; margin: 0 auto 12px auto; display: block; color: var(--primary);"></i>
+        <p style="font-weight: 500; margin: 0;">Анализ файла и сверка с базой данных...</p>
+    </div>
+</div>
+
+<!-- ШАГ 2: Предпросмотр данных (Скрыт по умолчанию) -->
+<div id="previewStep" style="display: none;">
+
+    <!-- 4 Карточки статистики -->
+    <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+        <div class="card" style="display: flex; flex-direction: row; padding: 16px; align-items: center;">
+            <div class="card-icon blue" style="margin-right: 16px;"><i data-lucide="layers"></i></div>
+            <div>
+                <div class="card-label">Всего строк</div>
+                <div class="card-value" id="statTotal" style="margin-top: 0; font-size: 1.5rem;">0</div>
+            </div>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: row; padding: 16px; align-items: center;">
+            <div class="card-icon green" style="margin-right: 16px;"><i data-lucide="plus-circle"></i></div>
+            <div>
+                <div class="card-label">Новые записи</div>
+                <div class="card-value" style="margin-top: 0; font-size: 1.5rem; color: var(--primary);" id="statNew">0</div>
+            </div>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: row; padding: 16px; align-items: center;">
+            <div class="card-icon amber" style="margin-right: 16px;"><i data-lucide="copy"></i></div>
+            <div>
+                <div class="card-label">Дубликаты</div>
+                <div class="card-value" style="margin-top: 0; font-size: 1.5rem; color: #d97706;" id="statDuplicate">0</div>
+            </div>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: row; padding: 16px; align-items: center;">
+            <div class="card-icon" style="background: #fef2f2; color: #dc2626; margin-right: 16px;"><i data-lucide="alert-triangle"></i></div>
+            <div>
+                <div class="card-label">С ошибками (пропуск)</div>
+                <div class="card-value" style="margin-top: 0; font-size: 1.5rem; color: #dc2626;" id="statInvalid">0</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Контейнер AG Grid -->
+    <div class="table-container" style="margin-bottom: 24px;">
+        <div class="table-toolbar">
+            <div style="font-weight: 600; color: var(--text-main);">Предпросмотр данных</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">Цветом выделены дубликаты и ошибки</div>
+        </div>
+        <div id="myGrid" class="ag-theme-alpine" style="height: 500px; width: 100%;"></div>
+    </div>
+
+    <!-- Панель действий -->
+    <div style="display: flex; justify-content: flex-end; gap: 12px; margin-bottom: 32px;">
+        <button id="btnCancel" class="btn-outline">
+            Отменить
+        </button>
+        <button id="btnCommit" class="btn-primary">
+            <i data-lucide="save"></i> Подтвердить импорт
+        </button>
+    </div>
+</div>
+
+<!-- МОДАЛЬНОЕ ОКНО ПОДТВЕРЖДЕНИЯ ДУБЛИКАТОВ -->
+<div id="duplicateModal" class="modal-overlay hidden" style="z-index: 2000;">
+    <div class="modal-container">
+        <div class="modal-header">
+            <h3 style="display: flex; align-items: center; gap: 8px;"><i data-lucide="alert-circle" style="color: #d97706;"></i> Обнаружены дубликаты</h3>
+            <button type="button" class="btn-icon" onclick="closeDuplicateModal()"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+            <p style="color: #475569; margin-bottom: 24px; line-height: 1.5;">
+                В загруженном файле найдено <strong id="modalDupCount" style="color: #0f172a;">0</strong> записей, кадастровые номера которых уже есть в базе данных.
+                <br><br>Желаете ли вы обновить информацию в существующих контурах (координаты, площадь) новыми данными из файла?
+            </p>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <button id="btnModalUpdateAll" class="btn-primary" style="width: 100%; justify-content: center;">
+                    <i data-lucide="refresh-cw"></i> Обновить существующие и добавить новые
+                </button>
+                <button id="btnModalSkipDups" class="btn-outline" style="width: 100%; justify-content: center;">
+                    <i data-lucide="plus-circle" style="color: #10b981;"></i> Добавить только новые (Пропустить дубликаты)
+                </button>
+                <button id="btnModalCancel" class="btn-icon" style="width: 100%; justify-content: center; margin-top: 8px;" onclick="closeDuplicateModal()">
+                    Отмена
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- СЕКЦИЯ: ИСТОРИЯ ИМПОРТОВ -->
+<div class="card" style="margin-top: 32px;" id="historySection">
+    <div style="margin-bottom: 16px;">
+        <h3 style="font-size: 1.1rem; font-weight: 600; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
+            <i data-lucide="history" style="color: #64748b;"></i> Журнал загрузок
+        </h3>
+    </div>
+    <div class="table-wrapper">
+        <table class="history-table" style="width: 100%;">
+            <thead>
+                <tr>
+                    <th>Дата (UTC)</th>
+                    <th>Файл</th>
+                    <th>Обработано / Всего</th>
+                    <th>Исполнитель</th>
+                </tr>
+            </thead>
+            <tbody id="historyTableBody">
+                <tr>
+                    <td colspan="4" style="text-align: center; padding: 24px; color: #94a3b8;">
+                        <i data-lucide="loader" style="animation: spin 1s linear infinite; width: 24px; height: 24px; margin-bottom: 8px;"></i><br>
+                        Загрузка истории...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Подключаем стили и скрипты AG Grid -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-grid.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-theme-alpine.css">
+<script src="https://cdn.jsdelivr.net/npm/ag-grid-community/dist/ag-grid-community.min.js"></script>
+
+<!-- Скрипт логики страницы -->
+<script>
+    let currentSessionId = null;
+    let globalDuplicateCount = 0;
+    let gridApi = null;
+
+    document.addEventListener('DOMContentLoaded', function () {
+        lucide.createIcons();
+
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const btnCancel = document.getElementById('btnCancel');
+        const btnCommit = document.getElementById('btnCommit');
+
+        // Загрузка истории
+        loadImportHistory();
+
+        // --- Настройка AG Grid ---
+        const gridOptions = {
+            rowHeight: 56, // ПРИНУДИТЕЛЬНО ЗАДАЕМ ВЫСОТУ СТРОКИ В JAVASCRIPT
+            columnDefs: [
+                { headerName: "Строка", field: "rowIndex", width: 90, sortable: true },
+                {
+                    headerName: "Статус",
+                    field: "isValid",
+                    width: 140,
+                    sortable: true,
+                    cellClass: 'status-cell', // Изолированный класс для выравнивания
+                    cellRenderer: params => {
+                        // Используем стандартный глобальный класс badge
+                        if (!params.data.isValid) return '<span class="badge" style="background: #fef2f2; color: #dc2626; border: 1px solid #fecaca;">Ошибка</span>';
+                        if (params.data.isDuplicate) return '<span class="badge" style="background: #fefce8; color: #d97706; border: 1px solid #fde047;" title="Будет обновлен">Дубликат</span>';
+                        return '<span class="badge badge-success">Новый</span>';
+                    }
+                },
+                { headerName: "Кадастровый номер", field: "cadastralNumber", width: 200, filter: true },
+                { headerName: "Тип", field: "type", width: 120 },
+                { headerName: "Площадь (кв.м)", field: "areaSqMeters", width: 150 },
+                { headerName: "Адрес", field: "address", flex: 1, filter: true },
+                { headerName: "Ошибки", field: "errorMessage", flex: 1, cellStyle: { color: '#dc2626', fontWeight: '600' } }
+            ],
+            defaultColDef: {
+                resizable: true,
+                sortable: true
+            },
+            rowClassRules: {
+                'row-error': params => params.data.isValid === false,
+                'row-duplicate': params => params.data.isValid === true && params.data.isDuplicate === true
+            },
+            pagination: true,
+            paginationPageSize: 100,
+            overlayNoRowsTemplate: '<span style="padding: 10px; color: var(--text-muted);">Нет данных для отображения</span>'
+        };
+
+        const gridDiv = document.querySelector('#myGrid');
+        gridApi = agGrid.createGrid(gridDiv, gridOptions);
+
+        // --- Drag & Drop логика ---
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, e => { e.preventDefault(); e.stopPropagation(); }, false);
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropzone.addEventListener(eventName, () => {
+                dropzone.style.borderColor = 'var(--primary)';
+                dropzone.style.background = 'var(--primary-light)';
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, () => {
+                dropzone.style.borderColor = 'var(--border-light)';
+                dropzone.style.background = 'var(--bg-body)';
+            }, false);
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+        });
+
+        fileInput.addEventListener('change', function(e) {
+            if (this.files.length > 0) handleFile(this.files[0]);
+        });
+
+        async function handleFile(file) {
+            if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.csv')) {
+                alert('Пожалуйста, загрузите файл в формате Excel (.xlsx)');
+                return;
+            }
+
+            document.getElementById('dropzone').style.display = 'none';
+            document.getElementById('loadingIndicator').style.display = 'block';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/Registry/import/parse', { method: 'POST', body: formData });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Ошибка сервера при анализе файла.');
+                }
+
+                const result = await response.json();
+
+                currentSessionId = result.sessionId;
+                globalDuplicateCount = result.duplicateRows || 0;
+
+                // Обновляем статистику
+                document.getElementById('statTotal').innerText = result.totalRows;
+                document.getElementById('statNew').innerText = result.newRows || 0;
+                document.getElementById('statDuplicate').innerText = result.duplicateRows || 0;
+                document.getElementById('statInvalid').innerText = result.invalidRows;
+
+                gridApi.setGridOption('rowData', result.previewData);
+
+                document.getElementById('uploadStep').style.display = 'none';
+                document.getElementById('previewStep').style.display = 'block';
+
+            } catch (error) {
+                alert(`Ошибка: ${error.message}`);
+                document.getElementById('dropzone').style.display = 'block';
+                document.getElementById('loadingIndicator').style.display = 'none';
+                fileInput.value = '';
+            }
+        }
+
+        btnCancel.addEventListener('click', () => {
+            if(confirm('Вы уверены, что хотите отменить импорт?')) window.location.reload();
+        });
+
+        // --- ЛОГИКА ПОДТВЕРЖДЕНИЯ С МОДАЛКОЙ ---
+        btnCommit.addEventListener('click', () => {
+            if (!currentSessionId) return;
+
+            if (globalDuplicateCount > 0) {
+                document.getElementById('modalDupCount').innerText = globalDuplicateCount;
+                document.getElementById('duplicateModal').classList.remove('hidden');
+            } else {
+                executeCommit(false);
+            }
+        });
+
+        document.getElementById('btnModalUpdateAll').addEventListener('click', () => {
+            closeDuplicateModal();
+            executeCommit(true);
+        });
+
+        document.getElementById('btnModalSkipDups').addEventListener('click', () => {
+            closeDuplicateModal();
+            executeCommit(false);
+        });
+    });
+
+    function closeDuplicateModal() {
+        document.getElementById('duplicateModal').classList.add('hidden');
+    }
+
+    async function executeCommit(updateDuplicatesFlag) {
+        const btnCommit = document.getElementById('btnCommit');
+        const originalText = btnCommit.innerHTML;
+
+        btnCommit.innerHTML = '<i data-lucide="loader" style="animation: spin 1s linear infinite; margin-right: 8px;"></i> Сохранение...';
+        lucide.createIcons();
+        btnCommit.disabled = true;
+
+        try {
+            const response = await fetch(`/api/Registry/import/commit/${currentSessionId}?updateDuplicates=${updateDuplicatesFlag}`, {
+                method: 'POST'
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Ошибка при сохранении данных в БД.');
+            }
+
+            const result = await response.json();
+            alert(`Успех! ${result.message}`);
+            window.location.reload();
+
+        } catch (error) {
+            alert(`Ошибка импорта: ${error.message}`);
+            btnCommit.innerHTML = originalText;
+            btnCommit.disabled = false;
+            lucide.createIcons();
+        }
+    }
+
+    async function loadImportHistory() {
+        const tbody = document.getElementById('historyTableBody');
+        try {
+            const response = await fetch('/api/Registry/import/history');
+            if (!response.ok) throw new Error('Ошибка загрузки истории');
+
+            const data = await response.json();
+
+            if (data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #94a3b8; padding: 24px;">История импортов пуста.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = data.map(item => {
+                const date = new Date(item.importDateUtc).toLocaleString('ru-RU');
+                const badgeClass = item.importedRows > 0 ? 'badge-success' : '';
+                const badgeStyle = item.importedRows === 0 ? 'background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;' : '';
+                return `
+                    <tr>
+                        <td style="font-weight: 500;">${date}</td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <i data-lucide="file-spreadsheet" style="width: 16px; height: 16px; color: #10b981;"></i>
+                                ${item.fileName}
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge ${badgeClass}" style="${badgeStyle}">
+                                ${item.importedRows} / ${item.totalRows}
+                            </span>
+                        </td>
+                        <td>${item.userName}</td>
+                    </tr>
+                `;
+            }).join('');
+            lucide.createIcons();
+        } catch (error) {
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #ef4444; padding: 24px;">Не удалось загрузить историю.</td></tr>`;
+        }
+    }
+</script>

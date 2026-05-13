@@ -1,0 +1,259 @@
+﻿@page
+@model CadastreInvent.Api.Pages.InspectionHelpModel
+@{
+    ViewData["Title"] = "Регламент полевых инспекций";
+    ViewData["ActivePage"] = "Inspection";
+}
+
+<link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+
+<style>
+    .help-layout {
+        display: flex;
+        gap: 32px;
+        align-items: flex-start;
+    }
+
+    .help-sidebar {
+        width: 320px;
+        background: white;
+        border: 1px solid var(--border-light);
+        border-radius: 16px;
+        padding: 24px;
+        position: sticky;
+        top: 24px;
+        box-shadow: var(--shadow-card);
+        flex-shrink: 0;
+    }
+
+        .help-sidebar h3 {
+            font-size: 1.1rem;
+            color: var(--text-main);
+            margin-top: 0;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+        }
+
+    .help-nav {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+        .help-nav li a {
+            display: block;
+            padding: 10px 14px;
+            color: var(--text-muted);
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+            .help-nav li a:hover {
+                background: #f8fafc;
+                color: var(--primary-dark);
+                border-color: #e2e8f0;
+                transform: translateX(4px);
+            }
+
+    .help-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 32px;
+    }
+
+    .help-section {
+        background: white;
+        border: 1px solid var(--border-light);
+        border-radius: 16px;
+        padding: 36px;
+        box-shadow: var(--shadow-card);
+        scroll-margin-top: 24px;
+    }
+
+        .help-section h2 {
+            font-size: 1.5rem;
+            color: var(--text-main);
+            margin-top: 0;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--border-light);
+            padding-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 800;
+        }
+
+        .help-section p {
+            font-size: 1rem;
+            color: #334155;
+            line-height: 1.7;
+            margin-bottom: 16px;
+            text-align: justify;
+        }
+
+        .help-section ul, .help-section ol {
+            padding-left: 28px;
+            color: #334155;
+            line-height: 1.7;
+            margin-bottom: 20px;
+        }
+
+        .help-section li {
+            margin-bottom: 10px;
+        }
+
+    .help-alert {
+        background: #f0fdf4;
+        border-left: 4px solid #10b981;
+        padding: 20px;
+        border-radius: 0 12px 12px 0;
+        margin-bottom: 24px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+        .help-alert.warning {
+            background: #fffbeb;
+            border-left-color: #f59e0b;
+        }
+
+        .help-alert strong {
+            color: #064e3b;
+            display: block;
+            margin-bottom: 8px;
+            font-size: 1.05rem;
+        }
+
+        .help-alert.warning strong {
+            color: #78350f;
+        }
+
+    .kbd-key {
+        display: inline-block;
+        padding: 4px 8px;
+        font-family: monospace;
+        font-size: 0.85rem;
+        color: #0f172a;
+        background: #f1f5f9;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        box-shadow: 0 2px 0 #cbd5e1;
+        font-weight: 600;
+        margin: 0 2px;
+    }
+
+    .highlight-term {
+        font-weight: 700;
+        color: #0369a1;
+        background: #e0f2fe;
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+</style>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Регламент полевых инспекций</h1>
+        <p class="page-subtitle">Документация по координации выездных обследований и работе с мобильным терминалом</p>
+    </div>
+    <div>
+        <a href="/Inspection" class="btn-outline"><i data-lucide="arrow-left"></i> Вернуться в рабочий модуль</a>
+    </div>
+</div>
+
+<div class="help-layout">
+    <aside class="help-sidebar">
+        <h3><i data-lucide="compass" style="color: #3b82f6;"></i> Содержание</h3>
+        <ul class="help-nav">
+            <li><a href="#intro">1. Общие принципы подсистемы</a></li>
+            <li><a href="#dispatch">2. АРМ Диспетчера и координация</a></li>
+            <li><a href="#mobile">3. Мобильный терминал инспектора</a></li>
+            <li><a href="#hardware">4. Аппаратная интеграция и навигация</a></li>
+            <li><a href="#execution">5. Формирование доказательной базы</a></li>
+            <li><a href="#validation">6. Верификация результатов</a></li>
+        </ul>
+    </aside>
+
+    <div class="help-content">
+        <section id="intro" class="help-section">
+            <h2><i data-lucide="radar" style="color: #64748b;"></i> 1. Общие принципы гибридной подсистемы</h2>
+            <p>Модуль полевых проверок представляет собой гибридный программный комплекс, объединяющий стационарное автоматизированное рабочее место (АРМ) контролирующего органа и портативный интерфейс полевого специалиста.</p>
+            <p>Цель подсистемы — выявление расхождений между юридическими границами объектов в Едином государственном реестре и их фактическим использованием на местности, а также фиксация фактов самовольного строительства и нецелевого использования земель.</p>
+            <div class="help-alert">
+                <strong>Жизненный цикл задачи:</strong>
+                <p style="margin:0;">Любое полевое задание строго подчиняется однонаправленному алгоритму: <em>Назначено</em> &rarr; <em>В работе</em> &rarr; <em>Ожидает проверки</em> &rarr; <em>Завершено (или Отклонено)</em>. Переход между этапами протоколируется с фиксацией точного времени и инициатора.</p>
+            </div>
+        </section>
+
+        <section id="dispatch" class="help-section">
+            <h2><i data-lucide="map" style="color: #3b82f6;"></i> 2. АРМ Диспетчера и маршрутизация</h2>
+            <p>Стационарный интерфейс диспетчера предназначен для оперативного управления штатом инспекторов и визуального мониторинга текущей ситуации на территории покрытия.</p>
+            <ul>
+                <li>Формирование задания (ордера) осуществляется путем выбора целевого пространственного контура из базы данных и назначения свободного специалиста.</li>
+                <li>Каждой задаче присваивается географическая координата (центр целевого участка) и устанавливается нормативный срок исполнения.</li>
+                <li>Глобальная карта в реальном времени отображает геопозиции всех сформированных ордеров. Цветовое кодирование маркеров позволяет диспетчеру мгновенно идентифицировать статус каждой инспекции (Назначено, В работе, Завершено).</li>
+            </ul>
+        </section>
+
+        <section id="mobile" class="help-section">
+            <h2><i data-lucide="smartphone" style="color: #10b981;"></i> 3. Мобильный терминал инспектора</h2>
+            <p>АРМ Инспектора <span class="highlight-term">оптимизировано для портативных устройств</span> и предназначено для использования на сенсорных экранах непосредственно в условиях проведения обследования.</p>
+            <p>Доступ к терминалу открывается при авторизации сотрудника с должностной ролью "Полевой инспектор". Интерфейс спроектирован с применением высококонтрастных элементов для обеспечения читаемости при прямом солнечном свете.</p>
+            <ol>
+                <li>Вкладка "Мои задачи" синхронизируется с сервером и отображает перечень активных ордеров.</li>
+                <li>Инспектор подтверждает факт прибытия на объект нажатием кнопки <span class="kbd-key">Приступить к выполнению</span>, что переводит задачу в статус активной работы и открывает доступ к модулям фиксации.</li>
+            </ol>
+        </section>
+
+        <section id="hardware" class="help-section">
+            <h2><i data-lucide="satellite" style="color: #8b5cf6;"></i> 4. Аппаратная интеграция и навигация</h2>
+            <p>Для предотвращения фальсификаций доказательной базы мобильный терминал глубоко интегрирован с аппаратными модулями устройства инспектора.</p>
+            <ul>
+                <li><strong>Абсолютная привязка:</strong> Захват фотоматериалов осуществляется с принудительной инициализацией системной камеры устройства, исключая возможность загрузки заранее подготовленных изображений из памяти телефона.</li>
+                <li><strong>Контроль геолокации:</strong> В момент создания снимка система автоматически запрашивает данные со спутников через встроенные службы позиционирования устройства. Снимок не может быть отправлен в центральную базу до момента получения устойчивого сигнала и точной фиксации широты и долготы.</li>
+            </ul>
+            <div class="help-alert warning">
+                <strong>Системное ограничение:</strong>
+                <p style="margin:0;">При отказе в предоставлении разрешений на использование камеры или сервисов геолокации в браузере мобильного устройства, выполнение задачи технически блокируется.</p>
+            </div>
+        </section>
+
+        <section id="execution" class="help-section">
+            <h2><i data-lucide="clipboard-pen" style="color: #f59e0b;"></i> 5. Формирование доказательной базы</h2>
+            <p>В процессе обследования инспектор формирует пакет материалов, подтверждающих или опровергающих факт кадастрового правонарушения.</p>
+            <p>Пакет включает в себя два типа данных:</p>
+            <ul>
+                <li><strong>Фотоматериалы:</strong> Визуальная фиксация объекта с внедренными геопространственными метаданными.</li>
+                <li><strong>Акт наблюдения:</strong> Структурированный электронный документ, содержащий категорию выявленного факта (например, "Незаконная застройка" или "Расхождение границ") и текстовое заключение эксперта.</li>
+            </ul>
+            <p>После сбора всех необходимых данных инспектор активирует процедуру завершения выезда. Система блокирует возможность дальнейшего редактирования материалов и отправляет уведомление диспетчеру.</p>
+        </section>
+
+        <section id="validation" class="help-section">
+            <h2><i data-lucide="shield-check" style="color: #ef4444;"></i> 6. Верификация результатов</h2>
+            <p>На финальном этапе диспетчер осуществляет проверку поступивших отчетов в панели верификации. Ключевым механизмом защиты является алгоритм контроля геозон.</p>
+            <p>Система автоматически вычисляет расстояние (в метрах) между точкой, где инспектор сделал фотографию, и официальными границами обследуемого контура.</p>
+            <ul>
+                <li>При выявлении критического отклонения координат диспетчеру выводится системное предупреждение о возможной фальсификации места съемки.</li>
+                <li>В случае соответствия параметров диспетчер утверждает акт, что переводит задачу в исторический архив и завершает цикл обследования.</li>
+                <li>При наличии признаков недобросовестного выполнения ордер может быть отклонен и направлен на повторное исполнение.</li>
+            </ul>
+        </section>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        lucide.createIcons();
+    });
+</script>

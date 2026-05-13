@@ -1,0 +1,260 @@
+﻿@page
+@model CadastreInvent.Api.Pages.ValuationHelpModel
+@{
+    ViewData["Title"] = "Методология кадастровой оценки";
+    ViewData["ActivePage"] = "Valuation";
+}
+
+<link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+
+<style>
+    .help-layout {
+        display: flex;
+        gap: 32px;
+        align-items: flex-start;
+    }
+
+    .help-sidebar {
+        width: 320px;
+        background: white;
+        border: 1px solid var(--border-light);
+        border-radius: 16px;
+        padding: 24px;
+        position: sticky;
+        top: 24px;
+        box-shadow: var(--shadow-card);
+        flex-shrink: 0;
+    }
+
+        .help-sidebar h3 {
+            font-size: 1.1rem;
+            color: var(--text-main);
+            margin-top: 0;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+        }
+
+    .help-nav {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+        .help-nav li a {
+            display: block;
+            padding: 10px 14px;
+            color: var(--text-muted);
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+            .help-nav li a:hover {
+                background: #f8fafc;
+                color: var(--primary-dark);
+                border-color: #e2e8f0;
+                transform: translateX(4px);
+            }
+
+    .help-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 32px;
+    }
+
+    .help-section {
+        background: white;
+        border: 1px solid var(--border-light);
+        border-radius: 16px;
+        padding: 36px;
+        box-shadow: var(--shadow-card);
+        scroll-margin-top: 24px;
+    }
+
+        .help-section h2 {
+            font-size: 1.5rem;
+            color: var(--text-main);
+            margin-top: 0;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--border-light);
+            padding-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 800;
+        }
+
+        .help-section p {
+            font-size: 1rem;
+            color: #334155;
+            line-height: 1.7;
+            margin-bottom: 16px;
+            text-align: justify;
+        }
+
+        .help-section ul, .help-section ol {
+            padding-left: 28px;
+            color: #334155;
+            line-height: 1.7;
+            margin-bottom: 20px;
+        }
+
+        .help-section li {
+            margin-bottom: 10px;
+        }
+
+    .help-alert {
+        background: #f0fdf4;
+        border-left: 4px solid #10b981;
+        padding: 20px;
+        border-radius: 0 12px 12px 0;
+        margin-bottom: 24px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+        .help-alert.warning {
+            background: #fffbeb;
+            border-left-color: #f59e0b;
+        }
+
+        .help-alert strong {
+            color: #064e3b;
+            display: block;
+            margin-bottom: 8px;
+            font-size: 1.05rem;
+        }
+
+        .help-alert.warning strong {
+            color: #78350f;
+        }
+
+    .kbd-key {
+        display: inline-block;
+        padding: 4px 8px;
+        font-family: monospace;
+        font-size: 0.85rem;
+        color: #0f172a;
+        background: #f1f5f9;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        box-shadow: 0 2px 0 #cbd5e1;
+        font-weight: 600;
+        margin: 0 2px;
+    }
+
+    .highlight-term {
+        font-weight: 700;
+        color: #0369a1;
+        background: #e0f2fe;
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+</style>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Академическое руководство: Массовая оценка</h1>
+        <p class="page-subtitle">Фундаментальная методология вычисления кадастровой стоимости и процессуального оспаривания</p>
+    </div>
+    <div>
+        <a href="/Valuation" class="btn-outline"><i data-lucide="arrow-left"></i> Вернуться в Рабочую среду</a>
+    </div>
+</div>
+
+<div class="help-layout">
+    <aside class="help-sidebar">
+        <h3><i data-lucide="library" style="color: #3b82f6;"></i> Содержание</h3>
+        <ul class="help-nav">
+            <li><a href="#intro">1. Теоретическое обоснование</a></li>
+            <li><a href="#characteristics">2. Ценообразующие факторы</a></li>
+            <li><a href="#transactions">3. Анализ рыночных сделок</a></li>
+            <li><a href="#machine-learning">4. Машинное обучение</a></li>
+            <li><a href="#mass-appraisal">5. Процедура калькуляции</a></li>
+            <li><a href="#appeals">6. Производство по оспариванию</a></li>
+        </ul>
+    </aside>
+
+    <div class="help-content">
+        <section id="intro" class="help-section">
+            <h2><i data-lucide="book-open" style="color: #64748b;"></i> 1. Теоретическое обоснование методологии</h2>
+            <p>Модуль автоматизированной массовой оценки предназначен для систематического и математически обоснованного вычисления государственной стоимости объектов недвижимости. Применяемая методология базируется на статистическом анализе рыночных показателей и принципах регрессионного моделирования, что позволяет минимизировать субъективный фактор.</p>
+            <p>В отличие от индивидуальной оценки, предполагающей изолированное изучение одного объекта, массовая оценка формирует универсальные стоимостные зависимости, применимые ко всем профилям недвижимости в рамках единой территориальной зоны.</p>
+            <div class="help-alert">
+                <strong>Фундаментальный принцип:</strong>
+                <p style="margin:0;">Легитимность рассчитанной кадастровой стоимости напрямую зависит от полноты и достоверности собранных характеристик объектов и чистоты выборки рыночных транзакций.</p>
+            </div>
+        </section>
+
+        <section id="characteristics" class="help-section">
+            <h2><i data-lucide="sliders" style="color: #3b82f6;"></i> 2. Ценообразующие факторы и зонирование</h2>
+            <p>Процедура оценки инициируется с постановки объекта на специализированный учет. Каждому имущественному комплексу из Единого реестра присваивается <span class="highlight-term">Профиль оценки</span>, включающий в себя территориальную привязку и матрицу характеристик.</p>
+            <p>Система оперирует четырьмя базовыми категориями функционального зонирования: жилая застройка, коммерческая зона, индустриальный сектор и земли сельскохозяйственного назначения. Зонирование определяет первичный мультипликатор стоимости.</p>
+            <p>Матрица характеристик формируется в формате структурированной объектной нотации и обязана включать следующие математические переменные:</p>
+            <ul>
+                <li><strong>Площадь:</strong> Фактическая или вычисленная пространственная квадратура.</li>
+                <li><strong>Год постройки:</strong> Количественный показатель, определяющий коэффициент физического и морального износа.</li>
+                <li><strong>Этажность:</strong> Вертикальная локализация объекта.</li>
+                <li><strong>Удаленность от центра:</strong> Выраженная в километрах дистанция до ближайшего инфраструктурного ядра.</li>
+                <li><strong>Количество помещений:</strong> Объемно-планировочное решение.</li>
+            </ul>
+        </section>
+
+        <section id="transactions" class="help-section">
+            <h2><i data-lucide="banknote" style="color: #10b981;"></i> 3. Анализ рыночных сделок и очистка данных</h2>
+            <p>Основой для обучения аналитических алгоритмов служит реестр рыночных транзакций. Оператор вносит подтвержденные сделки купли-продажи, связывая конкретный объект недвижимости с фактической суммой реализованного контракта.</p>
+            <p>Ключевым этапом подготовки статистической базы является <span class="highlight-term">Выбраковка транзакций</span>. Алгоритмы машинного обучения обладают высокой чувствительностью к аномалиям, поэтому нерепрезентативные сделки должны быть изолированы.</p>
+            <p>Причины наложения ограничений на транзакцию:</p>
+            <ol>
+                <li>Сделки между аффилированными и взаимозависимыми структурами (занижение налоговой базы).</li>
+                <li>Принудительная реализация залогового обеспечения в процедурах банкротства (дисконт за срочность).</li>
+                <li>Статистические выбросы, нарушающие границы нормального распределения цен в регионе.</li>
+            </ol>
+            <div class="help-alert warning">
+                <strong>Ограничение компиляции:</strong>
+                <p style="margin:0;">Математический аппарат требует предоставления не менее 10 верифицированных рыночных сделок. При недостатке достоверных данных запуск процедуры обучения будет принудительно заблокирован.</p>
+            </div>
+        </section>
+
+        <section id="machine-learning" class="help-section">
+            <h2><i data-lucide="brain-circuit" style="color: #8b5cf6;"></i> 4. Машинное обучение и синтез алгоритмов</h2>
+            <p>Ядром оценочной системы выступает модуль искусственного интеллекта, реализующий метод градиентного бустинга. Алгоритм итеративно строит последовательность аналитических деревьев решений, где каждое последующее дерево корректирует статистические ошибки предыдущего.</p>
+            <p>Запуск функции <span class="kbd-key">Обучить новую модель</span> инициирует агрегацию всех профилей недвижимости, обладающих подтвержденными сделками, после чего система выявляет скрытые нелинейные зависимости между матрицей характеристик и итоговой рыночной ценой.</p>
+            <p>Каждая сгенерированная математическая модель получает уникальный идентификатор сборки и фиксируется в неизменяемом архиве. Это обеспечивает возможность аудиторской проверки и проведения ретроспективного анализа ранее сформированных цен.</p>
+        </section>
+
+        <section id="mass-appraisal" class="help-section">
+            <h2><i data-lucide="cpu" style="color: #f59e0b;"></i> 5. Процедура массовой калькуляции</h2>
+            <p>Интеграция скомпилированной модели в производственную среду осуществляется через ассистента массовой оценки. Данный процесс применяется ко всем объектам, состоящим на учете, и требует колоссальных вычислительных мощностей.</p>
+            <p>С целью обеспечения бесперебойной работы платформы, процессинг выполняется в изолированном фоновом потоке с использованием механизма асинхронных очередей. Индикатор выполнения в реальном времени информирует оператора о текущем статусе транзакции.</p>
+            <p>Алгоритм калькуляции последовательно комбинирует прогноз нейросети с заданным базовым тарифом и территориальными коэффициентами. По завершении цикла в реестр вносится новая запись о стоимости, а предыдущие значения автоматически переводятся в категорию исторического наследия.</p>
+        </section>
+
+        <section id="appeals" class="help-section">
+            <h2><i data-lucide="scale" style="color: #dc2626;"></i> 6. Производство по оспариванию стоимости</h2>
+            <p>Законодательство предусматривает право субъектов инициировать процедуру пересмотра установленной кадастровой стоимости в случае выявления методологических ошибок или несоответствия результата индивидуальной рыночной оценке.</p>
+            <p>Регистрация апелляции блокирует автоматические изменения стоимости данного объекта до момента вынесения процессуального решения. Конфликтная комиссия имеет полномочия применить один из следующих актов:</p>
+            <ul>
+                <li><strong>Отклонение требований:</strong> Текущая стоимость признается легитимной и остается без изменений.</li>
+                <li><strong>Делегирование в суд:</strong> Спор переводится в юрисдикцию судебных инстанций для проведения независимой экспертизы.</li>
+                <li><strong>Удовлетворение:</strong> Комиссия утверждает новую стоимость на основании отчета независимого оценщика.</li>
+            </ul>
+            <p>В случае удовлетворения требований, система автоматически формирует новую запись о стоимости с пометкой <span class="highlight-term">Индивидуальная корректировка</span>, отменяя действие алгоритма машинного обучения для конкретного имущественного объекта.</p>
+        </section>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        lucide.createIcons();
+    });
+</script>

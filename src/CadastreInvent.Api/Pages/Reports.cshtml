@@ -1,0 +1,606 @@
+﻿@page
+@model CadastreInvent.Api.Pages.ReportsModel
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Аналитика и отчетность";
+    ViewData["ActivePage"] = "Reports";
+}
+
+<style>
+    .tabs-nav {
+        display: flex;
+        gap: 32px;
+        border-bottom: 1px solid var(--border-light);
+        margin-bottom: 24px;
+        overflow-x: auto;
+    }
+
+    .tab-btn {
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid transparent;
+        padding: 12px 4px;
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        margin-bottom: -1px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+        .tab-btn:hover {
+            color: var(--text-main);
+            border-bottom-color: var(--border-light);
+        }
+
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+    .chart-card {
+        background: #ffffff;
+        border-radius: 16px;
+        border: 1px solid var(--border-light);
+        padding: 24px;
+        box-shadow: var(--shadow-card);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .chart-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--text-main);
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .chart-container {
+        position: relative;
+        height: 300px;
+        width: 100%;
+    }
+
+    .report-generator-panel {
+        background: #f8fafc;
+        border: 1px solid var(--border-light);
+        border-radius: 12px;
+        padding: 24px;
+        display: flex;
+        gap: 32px;
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .generator-block {
+        width: 100%;
+    }
+
+    .generator-title {
+        font-weight: 700;
+        color: var(--text-main);
+        margin-bottom: 8px;
+        font-size: 1rem;
+    }
+
+    .generator-desc {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        margin-bottom: 16px;
+    }
+
+    .lookup-wrapper {
+        display: flex;
+        align-items: center;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #ffffff;
+        transition: border-color 0.2s;
+    }
+
+    .lookup-input {
+        flex: 1;
+        border: none;
+        padding: 10px 12px;
+        outline: none;
+        background: transparent;
+        cursor: pointer;
+        color: #0f172a;
+        font-size: 0.9rem;
+    }
+
+    .lookup-btn {
+        background: #e2e8f0;
+        border: none;
+        border-left: 1px solid #cbd5e1;
+        padding: 10px 16px;
+        cursor: pointer;
+        color: #475569;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .ag-theme-alpine {
+        --ag-font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        border: none;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid var(--border-light);
+    }
+
+    .passport-preview-container {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 32px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        max-width: 900px;
+        margin-top: 24px;
+        color: #0f172a;
+        font-family: Arial, sans-serif;
+    }
+
+    .passport-header {
+        text-align: center;
+        border-bottom: 2px solid #e2e8f0;
+        padding-bottom: 16px;
+        margin-bottom: 24px;
+    }
+
+    .passport-section {
+        margin-bottom: 24px;
+    }
+
+    .passport-section-title {
+        font-size: 1.1rem;
+        font-weight: bold;
+        margin-bottom: 12px;
+        color: #1e293b;
+        border-bottom: 1px solid #f1f5f9;
+        padding-bottom: 4px;
+    }
+
+    .passport-row {
+        display: flex;
+        margin-bottom: 8px;
+        font-size: 0.95rem;
+    }
+
+    .passport-lbl {
+        width: 200px;
+        font-weight: bold;
+        color: #475569;
+    }
+
+    .passport-val {
+        flex: 1;
+        font-weight: normal;
+    }
+
+    /* ДВА БЛОКА ДЛЯ КООРДИНАТ И КАРТЫ */
+    .spatial-grid {
+        display: flex;
+        gap: 20px;
+        align-items: flex-start;
+    }
+
+    .coords-block {
+        flex: 1;
+        background: #f8fafc;
+        padding: 16px;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+        font-family: monospace;
+        font-size: 0.85rem;
+        color: #475569;
+        max-height: 250px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+    }
+
+    .map-block {
+        width: 350px;
+        height: 250px;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid #e2e8f0;
+        background: #f1f5f9;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+        .map-block img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+</style>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-grid.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-theme-alpine.css">
+<script src="https://cdn.jsdelivr.net/npm/ag-grid-community/dist/ag-grid-community.min.js"></script>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Сводная аналитика и формирование отчетов</h1>
+        <p class="page-subtitle">Многоуровневое отображение показателей оценки и сохранение официальных документов.</p>
+    </div>
+</div>
+
+<div class="tabs-nav">
+    <button class="tab-btn active" onclick="switchTab('tab-charts', this)">
+        <i data-lucide="bar-chart"></i> Графики
+    </button>
+    <button class="tab-btn" onclick="switchTab('tab-tables', this)">
+        <i data-lucide="table"></i> Табличная отчетность
+    </button>
+    <button class="tab-btn" onclick="switchTab('tab-passports', this)">
+        <i data-lucide="file-text"></i> Кадастровые выписки
+    </button>
+</div>
+
+<!-- ВКЛАДКА 1: ГРАФИКИ -->
+<div id="tab-charts" class="tab-content" style="display: block;">
+    <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));">
+
+        <div class="chart-card">
+            <div class="chart-title"><i data-lucide="trending-up" style="color: #ef4444;"></i> Изменение кадастровой стоимости по годам</div>
+            <div class="chart-container">
+                <canvas id="dynamicsChart"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <div class="chart-title"><i data-lucide="bar-chart-2" style="color: #10b981;"></i> Распределение кадастровой стоимости</div>
+            <div class="chart-container">
+                <canvas id="valuationDistChart"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <div class="chart-title"><i data-lucide="pie-chart" style="color: #3b82f6;"></i> Состояние выездных проверок</div>
+            <div class="chart-container">
+                <canvas id="inspectionChart"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <div class="chart-title"><i data-lucide="bar-chart-horizontal" style="color: #8b5cf6;"></i> Результаты автоматизированной оценки по зонам</div>
+            <div class="chart-container">
+                <canvas id="modelResultsChart"></canvas>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ВКЛАДКА 2: ОТЧЕТНОСТЬ -->
+<div id="tab-tables" class="tab-content" style="display: none;">
+    <div class="card" style="padding: 0; overflow: hidden; display: flex; flex-direction: column; height: 650px;">
+        <div style="padding: 16px 24px; border-bottom: 1px solid var(--border-light); background: #f8fafc; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <label style="font-weight: 600; color: var(--text-main);">Выбор отчета:</label>
+                <select id="report-type-selector" class="form-control" style="width: 350px; padding: 8px 12px; background: white;" onchange="loadReportData()">
+                    <option value="zoning-summary">Сводный реестр по зонам (площадь и стоимость)</option>
+                    <option value="data-quality">Оценка полноты и качества данных</option>
+                    <option value="inspector-kpi">Показатели эффективности инспекторов</option>
+                    <option value="comparative">Сравнительный анализ (отклонения стоимости)</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 12px;">
+                <button class="btn-outline" style="border-color: #10b981; color: #10b981; padding: 8px 16px;" onclick="exportCurrentReport('excel')">
+                    <i data-lucide="file-spreadsheet" style="width: 16px;"></i> Сохранить как таблицу
+                </button>
+                <button class="btn-outline" style="border-color: #ef4444; color: #ef4444; padding: 8px 16px;" onclick="exportCurrentReport('pdf')">
+                    <i data-lucide="file-text" style="width: 16px;"></i> Сохранить как документ
+                </button>
+            </div>
+        </div>
+        <div id="reportGrid" class="ag-theme-alpine" style="flex: 1; width: 100%;"></div>
+    </div>
+</div>
+
+<!-- ВКЛАДКА 3: ВЫПИСКИ -->
+<div id="tab-passports" class="tab-content" style="display: none;">
+    <div class="card">
+        <div class="chart-title"><i data-lucide="file-down" style="color: #f59e0b;"></i> Кадастровая выписка об объекте недвижимости</div>
+        <div class="report-generator-panel">
+            <div class="generator-block">
+                <div class="generator-desc" style="font-size: 1rem;">Официальный документ, содержащий характеристики, координатное описание границ, итоговую кадастровую оценку и список привязанных контуров.</div>
+
+                <div style="display: flex; gap: 12px; align-items: stretch; max-width: 600px; margin-top: 24px;">
+                    <div style="flex: 1;">
+                        <input type="hidden" id="report-baunit-id" />
+                        <div class="lookup-wrapper">
+                            <input type="text" id="report-baunit-text" class="lookup-input" readonly placeholder="Нажмите для выбора имущества..." onclick="openDictionary('/api/registry/lookup/baunits', 'report-baunit-id', 'report-baunit-text', 'Справочник: Объекты недвижимости')" />
+                            <button type="button" class="lookup-btn" onclick="openDictionary('/api/registry/lookup/baunits', 'report-baunit-id', 'report-baunit-text', 'Справочник: Объекты недвижимости')"><i data-lucide="search" style="width: 16px;"></i></button>
+                        </div>
+                    </div>
+                    <button class="btn-primary" style="background: #ef4444; box-shadow: 0 4px 12px rgba(239,68,68,0.3);" onclick="downloadPdfPassport()">
+                        <i data-lucide="download"></i> Сохранить документ
+                    </button>
+                </div>
+            </div>
+
+            <div id="passport-preview" class="passport-preview-container" style="display: none; width: 100%;">
+                <div class="passport-header">
+                    <h2 style="margin: 0; font-size: 1.25rem; color: #1e3a8a;">ВЫПИСКА ИЗ ГОСУДАРСТВЕННОГО РЕЕСТРА НЕДВИЖИМОСТИ</h2>
+                    <div style="font-size: 0.85rem; color: #64748b; margin-top: 8px;" id="prev-date">Сформировано: ...</div>
+                </div>
+
+                <div class="passport-section">
+                    <div class="passport-section-title">1. Общие сведения об объекте</div>
+                    <div class="passport-row"><div class="passport-lbl">Код объекта:</div><div class="passport-val" id="prev-id"></div></div>
+                    <div class="passport-row"><div class="passport-lbl">Наименование:</div><div class="passport-val" id="prev-name"></div></div>
+                    <div class="passport-row"><div class="passport-lbl">Оценочная зона:</div><div class="passport-val" id="prev-zoning"></div></div>
+                </div>
+
+                <div class="passport-section">
+                    <div class="passport-section-title">2. Пространственные и физические параметры</div>
+                    <div class="passport-row"><div class="passport-lbl">Кадастровые контуры:</div><div class="passport-val" id="prev-refs"></div></div>
+                    <div class="passport-row"><div class="passport-lbl">Установленная площадь:</div><div class="passport-val" id="prev-area"></div></div>
+                </div>
+
+                <div class="passport-section">
+                    <div class="passport-section-title">3. Экономические и стоимостные показатели</div>
+                    <div class="passport-row"><div class="passport-lbl">Кадастровая стоимость:</div><div class="passport-val" id="prev-value" style="color: #166534; font-weight: bold;"></div></div>
+                    <div class="passport-row"><div class="passport-lbl">Метод вычисления:</div><div class="passport-val" id="prev-method"></div></div>
+                </div>
+
+                <div class="passport-section">
+                    <div class="passport-section-title">4. Координатное описание границ и ситуационный план</div>
+                    <div class="spatial-grid">
+                        <div class="coords-block" id="prev-coords"></div>
+                        <div class="map-block">
+                            <img id="prev-map" src="" style="display: none;" />
+                            <span id="prev-map-placeholder" style="color: #94a3b8; font-size: 0.85rem;">Карта недоступна</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div id="modal-lookup" class="modal-overlay hidden" style="z-index: 1050; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; opacity: 1; transition: opacity 0.2s;">
+    <div class="modal-container" style="background: white; border-radius: 16px; width: 100%; max-width: 650px; padding: 0; min-height: 450px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);">
+        <div style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;">
+            <h3 id="lookup-title" style="margin: 0; color: #0f172a; display: flex; align-items: center; gap: 8px; font-size: 1.1rem;"><i data-lucide="database" style="color: #10b981;"></i> Системный справочник</h3>
+            <button type="button" style="background: none; border: none; cursor: pointer; color: #64748b;" onclick="closeDictionary()"><i data-lucide="x"></i></button>
+        </div>
+        <div style="padding: 16px 20px; border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+            <div style="display: flex; align-items: center; background: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0 12px;">
+                <i data-lucide="search" style="color: #94a3b8; width: 18px;"></i>
+                <input type="text" id="lookup-search" style="border: none; outline: none; width: 100%; padding: 10px; font-size: 0.9rem;" placeholder="Начните ввод для поиска..." onkeyup="delaySearchDictionary()" autocomplete="off" />
+            </div>
+        </div>
+        <div style="flex: 1; max-height: 400px; min-height: 250px; overflow-y: auto; background: white; position: relative;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead><tr><th style="font-weight: 600; text-transform: uppercase; padding: 12px 20px; border-bottom: 1px solid #e2e8f0; text-align: left; font-size: 0.8rem; color: #475569;">Результаты поиска</th></tr></thead>
+                <tbody id="lookup-results"></tbody>
+            </table>
+            <div id="lookup-loader" style="display: none; padding: 40px 20px; text-align: center; color: #64748b;">Загрузка...</div>
+            <div id="lookup-empty" style="display: none; padding: 40px 20px; text-align: center; color: #94a3b8;">Нет данных по вашему запросу.</div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        document.getElementById('modal-lookup').style.display = 'none';
+        if (window.lucide) window.lucide.createIcons();
+        initCharts();
+        initGrid();
+    });
+
+    function switchTab(tabId, btn) {
+        document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+        document.getElementById(tabId).style.display = 'block';
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        if (tabId === 'tab-tables') loadReportData();
+    }
+
+    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6'];
+
+    function initCharts() {
+        fetch('/api/reports/dynamics').then(r => r.json()).then(data => {
+            new Chart(document.getElementById('dynamicsChart'), {
+                type: 'line',
+                data: {
+                    labels: data.map(d => d.year),
+                    datasets: [{ label: 'Общая кадастровая стоимость (₽)', data: data.map(d => d.totalValue), borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, tension: 0.4 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        });
+
+        fetch('/api/reports/inspection-status').then(r => r.json()).then(data => {
+            new Chart(document.getElementById('inspectionChart'), {
+                type: 'doughnut',
+                data: { labels: data.map(d => d.status), datasets: [{ data: data.map(d => d.count), backgroundColor: colors, borderWidth: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+            });
+        });
+
+        fetch('/api/reports/valuation-distribution').then(r => r.json()).then(data => {
+            new Chart(document.getElementById('valuationDistChart'), {
+                type: 'bar',
+                data: { labels: data.map(d => d.rangeName), datasets: [{ label: 'Количество объектов', data: data.map(d => d.count), backgroundColor: '#10b981', borderRadius: 6 }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        });
+
+        fetch('/api/reports/model-results').then(r => r.json()).then(data => {
+            const labels = [...new Set(data.map(d => d.zoning))];
+            const models = [...new Set(data.map(d => d.modelName))];
+            const datasets = models.map((model, i) => ({
+                label: `Алгоритм: ${model}`,
+                data: labels.map(label => { const match = data.find(d => d.modelName === model && d.zoning === label); return match ? match.averageValue : 0; }),
+                backgroundColor: colors[i % colors.length], borderRadius: 4
+            }));
+            new Chart(document.getElementById('modelResultsChart'), {
+                type: 'bar', data: { labels, datasets }, options: { responsive: true, maintainAspectRatio: false }
+            });
+        });
+    }
+
+    let reportGridApi;
+
+    function initGrid() {
+        const gridOptions = {
+            defaultColDef: { flex: 1, sortable: true, filter: true, resizable: true },
+            columnDefs: [], rowData: [], pagination: true, paginationPageSize: 100,
+            overlayNoRowsTemplate: '<span style="color: #64748b;">Нет данных для отображения</span>'
+        };
+        const gridDiv = document.querySelector('#reportGrid');
+        reportGridApi = agGrid.createGrid(gridDiv, gridOptions);
+    }
+
+    function loadReportData() {
+        const type = document.getElementById('report-type-selector').value;
+        reportGridApi.showLoadingOverlay();
+
+        fetch(`/api/reports/${type}`)
+            .then(r => r.json())
+            .then(data => {
+                let colDefs = [];
+                if (type === 'zoning-summary') {
+                    colDefs = [
+                        { headerName: "Территориальная зона", field: "zoning" },
+                        { headerName: "Количество объектов", field: "objectsCount" },
+                        { headerName: "Общая площадь (м²)", field: "totalArea", valueFormatter: p => p.value.toLocaleString() },
+                        { headerName: "Суммарная стоимость (₽)", field: "totalValue", valueFormatter: p => p.value.toLocaleString() }
+                    ];
+                } else if (type === 'data-quality') {
+                    colDefs = [
+                        { headerName: "Территориальная зона", field: "zoning" },
+                        { headerName: "Всего объектов", field: "totalObjects" },
+                        { headerName: "Отсутствуют координаты", field: "missingCoords", cellStyle: p => p.value > 0 ? {color: 'red', fontWeight: 'bold'} : {} },
+                        { headerName: "Отсутствует площадь", field: "missingArea", cellStyle: p => p.value > 0 ? {color: 'red', fontWeight: 'bold'} : {} },
+                        { headerName: "Не указан год постройки", field: "missingYear", cellStyle: p => p.value > 0 ? {color: 'red', fontWeight: 'bold'} : {} },
+                        { headerName: "Процент нарушений", field: "defectPercentage", valueFormatter: p => p.value + "%", cellStyle: p => p.value > 10 ? {color: 'red', fontWeight: 'bold'} : {color: 'green'} }
+                    ];
+                } else if (type === 'inspector-kpi') {
+                    colDefs = [
+                        { headerName: "Сотрудник (Инспектор)", field: "inspectorName" },
+                        { headerName: "Назначено поручений", field: "assignedTasks" },
+                        { headerName: "Успешно выполнено", field: "completedTasks", cellStyle: {color: 'green', fontWeight: 'bold'} },
+                        { headerName: "Нарушен срок", field: "overdueTasks", cellStyle: p => p.value > 0 ? {color: 'red', fontWeight: 'bold'} : {} },
+                        { headerName: "Среднее время исполнения (ч)", field: "avgTimeHours", valueFormatter: p => p.value.toFixed(1) }
+                    ];
+                } else if (type === 'comparative') {
+                    colDefs = [
+                        { headerName: "Имущественный объект", field: "baUnitName" },
+                        { headerName: "Предыдущая оценка (₽)", field: "oldValue", valueFormatter: p => p.value.toLocaleString() },
+                        { headerName: "Новая оценка (₽)", field: "newValue", valueFormatter: p => p.value.toLocaleString() },
+                        { headerName: "Разница в стоимости (₽)", field: "difference", valueFormatter: p => p.value.toLocaleString(), cellStyle: p => p.value < 0 ? {color: 'red'} : {color: 'green'} },
+                        { headerName: "Процент отклонения", field: "diffPercentage", valueFormatter: p => p.value.toFixed(1) + "%", cellStyle: {fontWeight: 'bold'} }
+                    ];
+                }
+
+                reportGridApi.setGridOption('columnDefs', colDefs);
+                reportGridApi.setGridOption('rowData', data);
+            })
+            .catch(e => {
+                console.error(e);
+                reportGridApi.setGridOption('rowData', []);
+            });
+    }
+
+    function exportCurrentReport(format) {
+        const type = document.getElementById('report-type-selector').value;
+        window.open(`/api/reports/${type}/${format}`, '_blank');
+    }
+
+    function downloadPdfPassport() {
+        const id = document.getElementById('report-baunit-id').value;
+        if (!id) { alert('Выберите объект из справочника.'); return; }
+        window.open(`/api/reports/cadastral-extract/${id}/pdf`, '_blank');
+    }
+
+    async function loadPassportPreview(id) {
+        const previewContainer = document.getElementById('passport-preview');
+        try {
+            const res = await fetch('/api/reports/cadastral-extract/' + id);
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+
+            document.getElementById('prev-date').innerText = 'Сформировано: ' + new Date().toLocaleString('ru-RU') + ' (Предварительный просмотр)';
+            document.getElementById('prev-id').innerText = data.baUnitId;
+            document.getElementById('prev-name').innerText = data.baUnitName;
+            document.getElementById('prev-zoning').innerText = data.zoning;
+            document.getElementById('prev-refs').innerText = data.spatialReferences;
+            document.getElementById('prev-area').innerText = data.totalArea.toLocaleString('ru-RU') + ' м²';
+            document.getElementById('prev-value').innerText = data.assessedValue.toLocaleString('ru-RU', { minimumFractionDigits: 2 }) + ' руб.';
+            document.getElementById('prev-method').innerText = data.method;
+
+            document.getElementById('prev-coords').innerText = data.formattedCoordinates || "Координаты отсутствуют";
+
+            const mapImg = document.getElementById('prev-map');
+            const mapPlaceholder = document.getElementById('prev-map-placeholder');
+
+            // Вывод Яндекс-карты
+            if (data.mapImageUrl) {
+                mapImg.src = data.mapImageUrl;
+                mapImg.style.display = 'block';
+                mapPlaceholder.style.display = 'none';
+            } else {
+                mapImg.style.display = 'none';
+                mapPlaceholder.style.display = 'block';
+            }
+
+            previewContainer.style.display = 'block';
+        } catch (e) {
+            previewContainer.style.display = 'none';
+        }
+    }
+
+    let dictTargetId = '', dictTargetText = '', dictUrl = '', dictSearchTimer = null;
+    function openDictionary(url, targetId, targetText, title) {
+        dictUrl = url; dictTargetId = targetId; dictTargetText = targetText;
+        document.getElementById('lookup-title').innerHTML = `<i data-lucide="database" style="color: #10b981; margin-right: 8px;"></i> ${title}`;
+        document.getElementById('lookup-search').value = '';
+        document.getElementById('modal-lookup').style.display = 'flex';
+        if (window.lucide) window.lucide.createIcons();
+        setTimeout(() => document.getElementById('lookup-search').focus(), 100);
+        executeDictionarySearch('');
+    }
+    function closeDictionary() { document.getElementById('modal-lookup').style.display = 'none'; }
+    function delaySearchDictionary() { clearTimeout(dictSearchTimer); dictSearchTimer = setTimeout(() => executeDictionarySearch(document.getElementById('lookup-search').value), 300); }
+    async function executeDictionarySearch(query) {
+        const loader = document.getElementById('lookup-loader'), empty = document.getElementById('lookup-empty'), tbody = document.getElementById('lookup-results');
+        loader.style.display = 'block'; empty.style.display = 'none'; tbody.innerHTML = '';
+        try {
+            const res = await fetch(dictUrl + '?q=' + encodeURIComponent(query || ''));
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            loader.style.display = 'none';
+            if (!data || data.length === 0) { empty.style.display = 'block'; return; }
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                row.style.cursor = 'pointer';
+                row.onclick = () => {
+                    document.getElementById(dictTargetId).value = item.id;
+                    document.getElementById(dictTargetText).value = item.text;
+                    closeDictionary();
+                    if(dictTargetId === 'report-baunit-id') loadPassportPreview(item.id);
+                };
+                row.innerHTML = `<td style="padding: 12px 20px; border-bottom: 1px solid #f1f5f9; color: #0f172a; font-size: 0.95rem;">${item.text}</td>`;
+                tbody.appendChild(row);
+            });
+        } catch (e) { loader.style.display = 'none'; empty.style.display = 'block'; empty.innerText = 'Ошибка запроса.'; }
+    }
+</script>

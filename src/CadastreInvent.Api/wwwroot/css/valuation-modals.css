@@ -1,0 +1,226 @@
+﻿.lookup-wrapper {
+    display: flex;
+    align-items: center;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f8fafc;
+    transition: border-color 0.2s;
+}
+
+    .lookup-wrapper:focus-within {
+        border-color: #10b981;
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        background: #fff;
+    }
+
+.lookup-input {
+    flex: 1;
+    border: none;
+    padding: 10px 12px;
+    outline: none;
+    background: transparent;
+    cursor: pointer;
+    color: #0f172a;
+    font-size: 0.9rem;
+}
+
+.lookup-btn {
+    background: #e2e8f0;
+    border: none;
+    border-left: 1px solid #cbd5e1;
+    padding: 10px 16px;
+    cursor: pointer;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+    .lookup-btn:hover {
+        background: #cbd5e1;
+        color: #0f172a;
+    }
+
+.lookup-input:read-only {
+    cursor: pointer;
+}
+
+.lookup-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+    .lookup-table th {
+        padding: 10px 16px;
+        background: #f1f5f9;
+        border-bottom: 2px solid #cbd5e1;
+        font-size: 0.85rem;
+        color: #475569;
+        text-align: left;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    .lookup-table td {
+        padding: 12px 16px;
+        border-bottom: 1px solid #e2e8f0;
+        font-size: 0.9rem;
+        color: #334155;
+        cursor: pointer;
+    }
+
+    .lookup-table tr:hover td {
+        background-color: #e0f2fe;
+        color: #0369a1;
+    }
+
+.wizard-nav {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    position: relative;
+}
+
+    .wizard-nav::before {
+        content: '';
+        position: absolute;
+        top: 16px;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: #e2e8f0;
+        z-index: 1;
+    }
+
+.wizard-step {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+}
+
+.wizard-circle {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #e2e8f0;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    margin-bottom: 8px;
+    transition: all 0.3s;
+    border: 2px solid #fff;
+}
+
+.wizard-step.active .wizard-circle {
+    background: #10b981;
+    color: #fff;
+    box-shadow: 0 0 0 4px rgba(16,185,129,0.2);
+}
+
+.wizard-step.completed .wizard-circle {
+    background: #10b981;
+    color: #fff;
+}
+
+.wizard-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #64748b;
+    text-align: center;
+}
+
+.wizard-step.active .wizard-label {
+    color: #0f172a;
+    font-weight: 700;
+}
+
+.wizard-content {
+    display: none;
+    animation: fadeIn 0.4s;
+}
+
+    .wizard-content.active {
+        display: block;
+    }
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.deleted-row {
+    background-color: #fef2f2 !important;
+    opacity: 0.8;
+}
+
+.deleted-badge {
+    background-color: #ef4444;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-left: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+#modal-lookup {
+    z-index: 1050;
+}
+
+.search-highlight {
+    background-color: #fde047;
+    color: #0f172a;
+    font-weight: 700;
+    padding: 0 2px;
+    border-radius: 2px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.filter-panel {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #fff;
+    padding: 8px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    flex-wrap: wrap;
+}
+
+.filter-input {
+    padding: 6px 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    outline: none;
+}
+
+    .filter-input:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+    }
+
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 24px;
+    margin-bottom: 24px;
+}

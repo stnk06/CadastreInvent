@@ -1,0 +1,275 @@
+﻿<style>
+    .diagnostics-container {
+        background: #0f172a;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        display: flex;
+        flex-direction: column;
+        height: 650px;
+        border: 1px solid #334155;
+    }
+
+    .diagnostics-header {
+        background: #1e293b;
+        padding: 12px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #334155;
+    }
+
+    .diagnostics-title {
+        color: #f8fafc;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.95rem;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+    }
+
+    .diagnostics-controls {
+        display: flex;
+        gap: 8px;
+    }
+
+    .term-btn {
+        background: #334155;
+        border: none;
+        color: #cbd5e1;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+        .term-btn:hover {
+            background: #475569;
+            color: #f8fafc;
+        }
+
+    .terminal-window {
+        flex: 1;
+        padding: 16px;
+        overflow-y: auto;
+        font-family: 'Consolas', 'Courier New', monospace;
+        font-size: 0.85rem;
+        scroll-behavior: smooth;
+    }
+
+        .terminal-window::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .terminal-window::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+
+        .terminal-window::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+
+    .log-line {
+        margin-bottom: 6px;
+        line-height: 1.5;
+        word-wrap: break-word;
+        animation: fadeIn 0.3s ease-in-out;
+    }
+
+    .log-time {
+        color: #64748b;
+        margin-right: 8px;
+        user-select: none;
+    }
+
+    .log-level {
+        font-weight: bold;
+        width: 65px;
+        display: inline-block;
+        user-select: none;
+    }
+
+        .log-level.INFO {
+            color: #38bdf8;
+        }
+
+        .log-level.WARNING {
+            color: #fbbf24;
+        }
+
+        .log-level.ERROR {
+            color: #ef4444;
+        }
+
+    .log-source {
+        color: #c084fc;
+        margin-right: 8px;
+        user-select: none;
+    }
+
+    .log-msg {
+        color: #e2e8f0;
+    }
+
+        .log-msg.ERROR {
+            color: #fca5a5;
+        }
+
+    .log-exc {
+        color: #ef4444;
+        display: block;
+        margin-top: 4px;
+        padding-left: 80px;
+        white-space: pre-wrap;
+        font-size: 0.8rem;
+        opacity: 0.9;
+        border-left: 2px solid #ef4444;
+        margin-left: 65px;
+        padding-left: 12px;
+    }
+
+    .pulse-dot {
+        width: 8px;
+        height: 8px;
+        background-color: #10b981;
+        border-radius: 50%;
+        box-shadow: 0 0 8px #10b981;
+        animation: pulse 2s infinite;
+    }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(4px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @@keyframes pulse {
+        0% {
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        }
+
+        70% {
+            box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+        }
+
+        100% {
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+        }
+    }
+</style>
+
+<div class="diagnostics-container">
+    <div class="diagnostics-header">
+        <div class="diagnostics-title">
+            <div class="pulse-dot"></div>
+            Live-Терминал ML Engine
+        </div>
+        <div class="diagnostics-controls">
+            <button class="term-btn" onclick="toggleAutoScroll()" id="btn-autoscroll">
+                <i data-lucide="lock" style="width: 14px;"></i> Автоскролл: Вкл
+            </button>
+            <button class="term-btn" onclick="clearTerminal()">
+                <i data-lucide="trash-2" style="width: 14px;"></i> Очистить
+            </button>
+        </div>
+    </div>
+    <div id="diagnostics-terminal" class="terminal-window">
+        <div style="color: #64748b; text-align: center; margin-top: 20px;">
+            <i data-lucide="radio" style="width: 32px; height: 32px; margin-bottom: 8px; opacity: 0.5;"></i><br>
+            Установка защищенного соединения...
+        </div>
+    </div>
+</div>
+
+<script>
+    let autoScrollEnabled = true;
+
+    function toggleAutoScroll() {
+        autoScrollEnabled = !autoScrollEnabled;
+        const btn = document.getElementById('btn-autoscroll');
+        btn.innerHTML = autoScrollEnabled
+            ? '<i data-lucide="lock" style="width: 14px;"></i> Автоскролл: Вкл'
+            : '<i data-lucide="unlock" style="width: 14px; color: #94a3b8;"></i> Автоскролл: Выкл';
+        if (window.lucide) window.lucide.createIcons();
+    }
+
+    function clearTerminal() {
+        // Делаем API вызов, чтобы очистить память на самом сервере
+        fetch('/api/Valuation/diagnostics/clear', { method: 'POST' })
+            .then(r => {
+                if (!r.ok) throw new Error('Ошибка очистки на сервере');
+                document.getElementById('diagnostics-terminal').innerHTML = '<div style="color: #10b981; margin-top: 10px;">-- Консоль и системная память сервера успешно очищены --</div>';
+            })
+            .catch(e => {
+                document.getElementById('diagnostics-terminal').innerHTML += `<div style="color: #ef4444; margin-top: 10px;">Ошибка очистки: ${e.message}</div>`;
+            });
+    }
+
+    function appendLogToTerminal(log) {
+        const term = document.getElementById('diagnostics-terminal');
+        if (term.innerHTML.includes('Установка защищенного соединения') || term.innerHTML.includes('-- Ожидание событий')) term.innerHTML = '';
+
+        const time = new Date(log.timestamp).toLocaleTimeString('ru-RU', { hour12: false });
+        const excHtml = log.exceptionDetails ? `<div class="log-exc">${escapeHtml(log.exceptionDetails)}</div>` : '';
+
+        const line = document.createElement('div');
+        line.className = 'log-line';
+        line.innerHTML = `
+            <span class="log-time">[${time}]</span>
+            <span class="log-level ${log.level}">${log.level}</span>
+            <span class="log-source">[${escapeHtml(log.source)}]</span>
+            <span class="log-msg ${log.level}">${escapeHtml(log.message)}</span>
+            ${excHtml}
+        `;
+
+        term.appendChild(line);
+
+        if (autoScrollEnabled) {
+            term.scrollTop = term.scrollHeight;
+        }
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    function fetchDiagnosticHistory() {
+        fetch('/api/Valuation/diagnostics')
+            .then(async r => {
+                const text = await r.text();
+                if (!r.ok) throw new Error(`HTTP ${r.status}. Сервер ответил: ${text || 'Пусто'}`);
+                if (!text) return [];
+                return JSON.parse(text);
+            })
+            .then(logs => {
+                const term = document.getElementById('diagnostics-terminal');
+                term.innerHTML = '';
+                if(logs.length === 0) {
+                    term.innerHTML = '<div style="color: #10b981; margin-top: 10px;">-- Ожидание событий ML-движка --</div>';
+                    return;
+                }
+                logs.forEach(l => appendLogToTerminal(l));
+            })
+            .catch(e => {
+                const term = document.getElementById('diagnostics-terminal');
+                term.innerHTML = `<div style="color: #ef4444; padding: 20px; border: 1px solid #ef4444; border-radius: 8px; background: rgba(239, 68, 68, 0.1);">
+                    <i data-lucide="alert-octagon" style="margin-bottom: 8px;"></i><br>
+                    <strong>Критическая ошибка сети:</strong><br>${escapeHtml(e.message)}
+                </div>`;
+                if (window.lucide) window.lucide.createIcons();
+            });
+    }
+</script>

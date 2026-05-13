@@ -1,0 +1,1052 @@
+﻿@page
+@model CadastreInvent.Api.Pages.RegistryModel
+@using CadastreInvent.Shared.Application.Auth
+@{
+    ViewData["Title"] = "Единый реестр недвижимости";
+    ViewData["ActivePage"] = "Registry";
+    bool canDelete = User.HasClaim(c => c.Type == "Permission" && c.Value == Permissions.DataDelete);
+    bool canManageFieldTasks = User.HasClaim(c => c.Type == "Permission" && c.Value == Permissions.ManageFieldTasks);
+    bool isHistorical = Model.AsOfDate.HasValue;
+
+    Microsoft.AspNetCore.Html.IHtmlContent RenderTabLink(string tabKey, string tabName, bool isAccent = false)
+    {
+        string href = $"/Registry?tab={tabKey}";
+        if (isHistorical) href += $"&AsOfDate={Model.AsOfDate.Value:yyyy-MM-ddTHH:mm}";
+        string activeClass = Model.Tab == tabKey ? "active" : "";
+        string accentStyle = isAccent ? "border-left: 2px solid #cbd5e1; padding-left: 16px; margin-left: 4px;" : "";
+        return Html.Raw($"<a href=\"{href}\" class=\"tab-link {activeClass}\" style=\"{accentStyle}\">{tabName}</a>");
+    }
+
+    Microsoft.AspNetCore.Html.IHtmlContent RenderLookup(string label, string fieldName, string idPrefix, string url, string dictTitle, string wrapperId = null, string wrapperClass = "")
+    {
+        string idAttr = !string.IsNullOrEmpty(wrapperId) ? $"id=\"{wrapperId}\"" : "";
+        string clsAttr = $"class=\"form-group {wrapperClass}\"".Trim();
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"<div {idAttr} {clsAttr}>");
+        sb.AppendLine($"    <label class=\"form-label\">{label}</label>");
+        sb.AppendLine($"    <input type=\"hidden\" name=\"{fieldName}\" id=\"{idPrefix}-id\" />");
+        sb.AppendLine($"    <div class=\"lookup-wrapper\">");
+        sb.AppendLine($"        <input type=\"text\" id=\"{idPrefix}-text\" class=\"lookup-input\" readonly placeholder=\" \" onclick=\"openDictionary('{url}', '{idPrefix}-id', '{idPrefix}-text', '{dictTitle}')\" />");
+        sb.AppendLine($"        <button type=\"button\" class=\"lookup-btn\" onclick=\"openDictionary('{url}', '{idPrefix}-id', '{idPrefix}-text', '{dictTitle}')\"><i data-lucide=\"search\" style=\"width: 16px;\"></i></button>");
+        sb.AppendLine($"    </div>");
+        sb.AppendLine($"</div>");
+        return Html.Raw(sb.ToString());
+    }
+}
+<link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/registry-modals.css" asp-append-version="true" />
+<script src="~/js/inspection/table-highlighter.js" asp-append-version="true"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<style>
+    .filter-panel {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+        padding: 16px;
+        background: #ffffff;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .actions-container {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .table-search {
+        position: relative;
+        flex: 1 1 auto;
+        min-width: 250px;
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        pointer-events: none;
+        z-index: 10;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 8px 16px 8px 38px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        outline: none;
+        background: #ffffff;
+        color: #0f172a;
+        box-sizing: border-box;
+        transition: all 0.2s;
+    }
+
+        .search-input:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .search-input::placeholder {
+            color: #94a3b8 !important;
+            opacity: 1 !important;
+        }
+</style>
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Государственный реестр недвижимости</h1>
+        <p class="page-subtitle">Платформа ведения кадастрового учета и регистрации правоотношений</p>
+    </div>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: flex-end;">
+        <a href="/RegistryHelp" class="btn-outline" style="border-color: #6366f1; color: #6366f1; text-decoration: none;">
+            <i data-lucide="help-circle"></i> Справочное руководство
+        </a>
+        @if (!isHistorical)
+        {
+            @if (Model.Tab == "spatial")
+            {
+                <button class="btn-outline" onclick="window.location.href='/Map'">
+                    <i data-lucide="map-pin"></i> Добавить пространственный контур
+                </button>
+            }
+            else
+            {
+                <button class="btn-outline" onclick="openCreateModal()">
+                    <i data-lucide="layout-grid"></i> Внести базовую запись
+                </button>
+            }
+            @if (Model.Tab == "rrr")
+            {
+                <button class="btn-primary" onclick="openWizardModal()">
+                    <i data-lucide="scale"></i> Ассистент регистрации прав
+                </button>
+            }
+        }
+    </div>
+</div>
+@if (!string.IsNullOrEmpty(Model.StatusMessage))
+{
+    <div class="alert @(Model.StatusMessage.Contains("Ошибка") ? "alert-error" : "alert-success")" style="@(isHistorical ? "background: #fffbeb; color: #b45309; border-color: #fde68a;" : "")">
+        <i data-lucide="@(isHistorical ? "clock" : (Model.StatusMessage.Contains("Ошибка") ? "alert-triangle" : "check-circle"))" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 8px;"></i>
+        <span style="vertical-align: middle;">@Model.StatusMessage</span>
+    </div>
+}
+<div class="tabs" style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-bottom: 8px;">
+    @RenderTabLink("spatial", "Пространственные контуры")
+    @RenderTabLink("baunits", "Объекты недвижимости")
+    @RenderTabLink("parties", "Правообладатели")
+    @RenderTabLink("partygroups", "Совместные субъекты")
+    @RenderTabLink("sources", "Документы-основания")
+    @RenderTabLink("rrr", "Права и Ограничения", true)
+</div>
+<div class="table-container">
+    <form method="get" class="filter-panel">
+        <input type="hidden" name="Tab" value="@Model.Tab" />
+        <div class="table-search">
+            <i data-lucide="highlighter" class="search-icon" style="color: #eab308; width: 18px; height: 18px;"></i>
+            <input type="text" id="live-search-input" class="search-input" placeholder="Поиск по реестру..." autocomplete="off" />
+        </div>
+
+        @if (Model.Tab == "spatial")
+        {
+            <select name="FilterType" class="filter-input" onchange="this.form.submit()" style="flex: 0 1 auto;">
+                <option value="">Все категории площадей</option>
+                <option value="Parcel" selected="@(Model.FilterType == "Parcel")">Земельные участки</option>
+                <option value="Building" selected="@(Model.FilterType == "Building")">Здания</option>
+                <option value="Room" selected="@(Model.FilterType == "Room")">Помещения</option>
+                <option value="Volume3D" selected="@(Model.FilterType == "Volume3D")">Пространственные объемы</option>
+            </select>
+        }
+        else if (Model.Tab == "baunits")
+        {
+            <select name="FilterType" class="filter-input" onchange="this.form.submit()" style="flex: 0 1 auto;">
+                <option value="">Все категории объектов</option>
+                <option value="BasicPropertyUnit" selected="@(Model.FilterType == "BasicPropertyUnit")">Базовый объект недвижимости</option>
+                <option value="LeasedUnit" selected="@(Model.FilterType == "LeasedUnit")">Объект аренды</option>
+                <option value="RightOfUseUnit" selected="@(Model.FilterType == "RightOfUseUnit")">Объект права пользования</option>
+            </select>
+        }
+        else if (Model.Tab == "parties")
+        {
+            <select name="FilterType" class="filter-input" onchange="this.form.submit()" style="flex: 0 1 auto;">
+                <option value="">Все юридические статусы</option>
+                <option value="NaturalPerson" selected="@(Model.FilterType == "NaturalPerson")">Физические лица</option>
+                <option value="NonNaturalPerson" selected="@(Model.FilterType == "NonNaturalPerson")">Юридические лица</option>
+                <option value="Municipality" selected="@(Model.FilterType == "Municipality")">Муниципальные образования</option>
+                <option value="State" selected="@(Model.FilterType == "State")">Государственные субъекты</option>
+            </select>
+        }
+        else if (Model.Tab == "rrr")
+        {
+            <select name="FilterType" class="filter-input" onchange="this.form.submit()" style="flex: 0 1 auto;">
+                <option value="">Все зарегистрированные формы</option>
+                <option value="Ownership" selected="@(Model.FilterType == "Ownership")">Право собственности</option>
+                <option value="Lease" selected="@(Model.FilterType == "Lease")">Право аренды</option>
+                <option value="Mortgage" selected="@(Model.FilterType == "Mortgage")">Залоговое обременение</option>
+                <option value="Servitude" selected="@(Model.FilterType == "Servitude")">Ограничение</option>
+            </select>
+            <input type="date" name="FilterDateFrom" class="filter-input" value="@Model.FilterDateFrom?.ToString("yyyy-MM-dd")" onchange="this.form.submit()" title="Внесено от" style="flex: 0 1 auto;" />
+            <input type="date" name="FilterDateTo" class="filter-input" value="@Model.FilterDateTo?.ToString("yyyy-MM-dd")" onchange="this.form.submit()" title="Внесено до" style="flex: 0 1 auto;" />
+        }
+        else if (Model.Tab == "sources")
+        {
+            <select name="FilterType" class="filter-input" onchange="this.form.submit()" style="flex: 0 1 auto;">
+                <option value="">Все формы документов</option>
+                <option value="SaleContract" selected="@(Model.FilterType == "SaleContract")">Договор купли-продажи</option>
+                <option value="CourtDecision" selected="@(Model.FilterType == "CourtDecision")">Судебное постановление</option>
+                <option value="InheritanceCertificate" selected="@(Model.FilterType == "InheritanceCertificate")">Свидетельство о наследстве</option>
+                <option value="AdministrativeAct" selected="@(Model.FilterType == "AdministrativeAct")">Государственный акт</option>
+            </select>
+            <input type="date" name="FilterDateFrom" class="filter-input" value="@Model.FilterDateFrom?.ToString("yyyy-MM-dd")" onchange="this.form.submit()" title="Дата выдачи от" style="flex: 0 1 auto;" />
+            <input type="date" name="FilterDateTo" class="filter-input" value="@Model.FilterDateTo?.ToString("yyyy-MM-dd")" onchange="this.form.submit()" title="Дата выдачи до" style="flex: 0 1 auto;" />
+        }
+
+        <div style="display: flex; align-items: center; gap: 8px; flex: 0 1 auto; background: #f8fafc; padding: 4px 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
+            <i data-lucide="history" style="color: #64748b; width: 16px;"></i>
+            <input type="datetime-local" name="AsOfDate" value="@(Model.AsOfDate?.ToString("yyyy-MM-ddTHH:mm"))" class="filter-input" style="border: none; background: transparent; outline: none; padding: 0; box-shadow: none;" title="Дата исторического среза (UTC)" />
+            <button type="submit" class="btn-outline" style="padding: 4px 8px; font-size: 0.8rem; border-color: #3b82f6; color: #3b82f6;">Запросить</button>
+        </div>
+
+        @if (isHistorical || !string.IsNullOrEmpty(Model.FilterType) || Model.FilterDateFrom.HasValue || Model.FilterDateTo.HasValue)
+        {
+            <a href="/Registry?Tab=@Model.Tab" class="btn-icon" style="color: #ef4444;" title="Очистить все параметры запроса"><i data-lucide="x-circle"></i></a>
+        }
+    </form>
+
+    <div class="table-responsive">
+        <table id="registry-main-table">
+            <thead>
+                <tr>
+                    @if (Model.Tab == "spatial")
+                    {
+                        <th>Идентификационный номер</th>
+                        <th>Категория контура</th>
+                        <th>Установленная площадь</th>
+                        <th style="text-align:right;">Инструменты</th>
+                    }
+                    else if (Model.Tab == "baunits")
+                    {
+                        <th>Наименование имущества</th>
+                        <th>Категория владения</th>
+                        <th>Пространственные границы</th>
+                        <th style="text-align:right;">Инструменты</th>
+                    }
+                    else if (Model.Tab == "parties")
+                    {
+                        <th>ФИО или Наименование организации</th>
+                        <th>Юридический статус</th>
+                        <th>Регистрационный код</th>
+                        <th style="text-align:right;">Инструменты</th>
+                    }
+                    else if (Model.Tab == "partygroups")
+                    {
+                        <th>Обозначение совместного владения</th>
+                        <th>Состав долевого участия</th>
+                        <th style="text-align:right;">Инструменты</th>
+                    }
+                    else if (Model.Tab == "rrr")
+                    {
+                        <th>Зарегистрированное имущество</th>
+                        <th>Зарегистрированный правообладатель</th>
+                        <th>Спецификация права</th>
+                        <th style="text-align:right;">Инструменты</th>
+                    }
+                    else if (Model.Tab == "sources")
+                    {
+                        <th>Категория документации</th>
+                        <th>Учетный номер</th>
+                        <th>Дата официальной регистрации</th>
+                        <th style="text-align:right;">Материалы</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Tab == "spatial")
+                {
+                    @foreach (var item in Model.SpatialUnits)
+                    {
+                        <tr class="@(item.IsDeleted ? "deleted-row" : "")">
+                            <td>
+                                <div class="td-title" style="font-size: 1rem; color: #0369a1;">
+                                    @item.ReferenceNumber
+                                    @if (item.IsDeleted)
+                                    {
+                                        <span class="deleted-badge no-highlight"><i data-lucide="trash-2" style="width:10px; height:10px;"></i> Архивная запись</span>
+                                    }
+                                </div>
+                            </td>
+                            <td><span class="badge" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;">@item.TypeStr</span></td>
+                            <td style="font-weight: 600;">@item.AreaSqMeters.ToString("N1") м²</td>
+                            <td style="text-align: right;">
+                                <div class="actions-container">
+                                    @if (isHistorical)
+                                    {
+                                        <span class="badge no-highlight" style="background: #e2e8f0; color: #475569;">Режим чтения</span>
+                                    }
+                                    else if (!item.IsDeleted)
+                                    {
+                                        <a href="/Map" class="btn-outline" style="padding: 6px 12px; font-size: 0.8rem; text-decoration: none;"><i data-lucide="map" style="width:14px;"></i> Открыть графику</a>
+                                        @if (canManageFieldTasks)
+                                        {
+                                            <button class="btn-icon" title="Выслать инспектора на объект" onclick="window.spawnInspectionTask('@item.Id', null)" style="color: #3b82f6;">
+                                                <i data-lucide="radar"></i>
+                                            </button>
+                                        }
+                                        @if (canDelete)
+                                        {
+                                            <form method="post" asp-page-handler="DeleteData" style="display:inline; margin:0; padding:0;" onsubmit="return confirm('Поместить выбранную запись в архивный фонд?');">
+                                                <input type="hidden" name="id" value="@item.Id" /><input type="hidden" name="entityType" value="SpatialUnit" /><input type="hidden" name="Tab" value="spatial" />
+                                                <button type="submit" class="btn-icon danger"><i data-lucide="trash-2"></i></button>
+                                            </form>
+                                        }
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+                else if (Model.Tab == "baunits")
+                {
+                    @foreach (var item in Model.BAUnits)
+                    {
+                        <tr class="@(item.IsDeleted ? "deleted-row" : "")">
+                            <td>
+                                <div class="td-flex">
+                                    <div class="td-icon icon-bg-blue" style="background: #e0f2fe; color: #0369a1;"><i data-lucide="home"></i></div>
+                                    <div class="td-title">
+                                        @item.Name
+                                        @if (item.IsDeleted)
+                                        {
+                                            <span class="deleted-badge no-highlight"><i data-lucide="trash-2" style="width:10px; height:10px;"></i> Архивная запись</span>
+                                        }
+                                    </div>
+                                </div>
+                            </td>
+                            <td><span class="badge" style="background: #f8fafc; color: #334155; border: 1px solid #e2e8f0;">@item.TypeStr</span></td>
+                            <td style="font-size: 0.85rem; color: #475569;">
+                                @if (!item.SpatialUnitIdsMap.Any())
+                                {
+                                    <span style="color: #ef4444;" class="no-highlight">Границы не определены</span>
+                                }
+                                @foreach (var map in item.SpatialUnitIdsMap)
+                                {
+                                    <div style="display: flex; align-items: center; margin-bottom: 4px; gap: 8px;">
+                                        <i data-lucide="map-pin" style="width: 14px; color: #10b981; flex-shrink: 0;"></i>
+                                        <span>Код: <b>@map.Value</b></span>
+                                        @if (!isHistorical && !item.IsDeleted)
+                                        {
+                                            <form method="post" asp-page-handler="RemoveSpatialUnitFromBAUnit" style="display:flex; margin-left: auto;">
+                                                <input type="hidden" name="baUnitId" value="@item.Id" /><input type="hidden" name="spatialUnitId" value="@map.Key" />
+                                                <button type="submit" class="btn-icon danger" title="Исключить границу из описания"><i data-lucide="x-circle" style="width: 14px;"></i></button>
+                                            </form>
+                                        }
+                                    </div>
+                                }
+                            </td>
+                            <td style="text-align: right;">
+                                <div class="actions-container">
+                                    @if (isHistorical)
+                                    {
+                                        <span class="badge no-highlight" style="background: #e2e8f0; color: #475569;">Режим чтения</span>
+                                    }
+                                    else if (!item.IsDeleted)
+                                    {
+                                        <button class="btn-outline" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openLinkSpatialModal('@item.Id')"><i data-lucide="link" style="width:14px;"></i> Установить границы</button>
+                                        @if (canDelete)
+                                        {
+                                            <form method="post" asp-page-handler="DeleteData" style="display:inline; margin:0; padding:0;" onsubmit="return confirm('Поместить объект недвижимости в архив?');">
+                                                <input type="hidden" name="id" value="@item.Id" /><input type="hidden" name="entityType" value="BAUnit" /><input type="hidden" name="Tab" value="baunits" />
+                                                <button type="submit" class="btn-icon danger"><i data-lucide="trash-2"></i></button>
+                                            </form>
+                                        }
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+                else if (Model.Tab == "parties")
+                {
+                    @foreach (var item in Model.Parties)
+                    {
+                        <tr class="@(item.IsDeleted ? "deleted-row" : "")">
+                            <td>
+                                <div class="td-flex">
+                                    <div class="td-icon" style="background: #f1f5f9; color: #475569;"><i data-lucide="user"></i></div>
+                                    <div class="td-title">
+                                        @item.Name
+                                        @if (item.IsDeleted)
+                                        {
+                                            <span class="deleted-badge no-highlight"><i data-lucide="trash-2" style="width:10px; height:10px;"></i> Архивная запись</span>
+                                        }
+                                    </div>
+                                </div>
+                            </td>
+                            <td><span class="badge" style="background: #f8fafc; color: #334155; border: 1px solid #e2e8f0;">@item.TypeStr</span></td>
+                            <td style="font-weight: 600; font-family: monospace; letter-spacing: 1px;">@item.ExtId</td>
+                            <td style="text-align: right;">
+                                <div class="actions-container">
+                                    @if (isHistorical)
+                                    {
+                                        <span class="badge no-highlight" style="background: #e2e8f0; color: #475569;">Режим чтения</span>
+                                    }
+                                    else if (!item.IsDeleted)
+                                    {
+                                        <button class="btn-icon" onclick="editParty('@item.Id', '@item.ContactInfo')" title="Актуализировать данные обратной связи"><i data-lucide="edit"></i></button>
+                                        @if (canDelete)
+                                        {
+                                            <form method="post" asp-page-handler="DeleteData" style="display:inline; margin:0; padding:0;" onsubmit="return confirm('Переместить сведения о правообладателе в архив?');">
+                                                <input type="hidden" name="id" value="@item.Id" /><input type="hidden" name="entityType" value="Party" /><input type="hidden" name="Tab" value="parties" />
+                                                <button type="submit" class="btn-icon danger"><i data-lucide="trash-2"></i></button>
+                                            </form>
+                                        }
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+                else if (Model.Tab == "partygroups")
+                {
+                    @foreach (var item in Model.PartyGroups)
+                    {
+                        <tr class="@(item.IsDeleted ? "deleted-row" : "")">
+                            <td>
+                                <div class="td-flex">
+                                    <div class="td-icon" style="background: #fef3c7; color: #b45309;"><i data-lucide="users"></i></div>
+                                    <div class="td-title">
+                                        @item.Name
+                                        @if (item.IsDeleted)
+                                        {
+                                            <span class="deleted-badge no-highlight"><i data-lucide="trash-2" style="width:10px; height:10px;"></i> Архивная запись</span>
+                                        }
+                                    </div>
+                                </div>
+                            </td>
+                            <td style="font-size: 0.85rem;">
+                                @if (!item.Members.Any())
+                                {
+                                    <span style="color: #ef4444;" class="no-highlight">Состав долевого участия не сформирован</span>
+                                }
+                                @foreach (var m in item.Members)
+                                {
+                                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px; border-bottom: 1px dashed #e2e8f0; gap: 8px;">
+                                        <span style="color: #0f172a; font-weight: 500; flex: 1;">@m.PartyName</span>
+                                        <span style="color: #64748b; white-space: nowrap;">(Доля: <b>@m.ShareNumerator/@m.ShareDenominator</b>)</span>
+                                        @if (!isHistorical && !item.IsDeleted)
+                                        {
+                                            <form method="post" asp-page-handler="RemovePartyFromGroup" style="display:flex; margin:0;">
+                                                <input type="hidden" name="groupId" value="@item.Id" /><input type="hidden" name="partyId" value="@m.PartyId" />
+                                                <button type="submit" class="btn-icon danger" style="padding:0;"><i data-lucide="user-minus" style="width: 14px;"></i></button>
+                                            </form>
+                                        }
+                                    </div>
+                                }
+                            </td>
+                            <td style="text-align: right;">
+                                <div class="actions-container">
+                                    @if (isHistorical)
+                                    {
+                                        <span class="badge no-highlight" style="background: #e2e8f0; color: #475569;">Режим чтения</span>
+                                    }
+                                    else if (!item.IsDeleted)
+                                    {
+                                        <button class="btn-outline" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openAddMemberModal('@item.Id')"><i data-lucide="user-plus" style="width: 14px;"></i> Включить правообладателя</button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+                else if (Model.Tab == "rrr")
+                {
+                    @foreach (var item in Model.Rrrs)
+                    {
+                        <tr class="@(item.IsDeleted ? "deleted-row" : "")" style="@(item.EndDate.HasValue ? "opacity: 0.7; background: #f8fafc;" : "")">
+                            <td style="font-weight: 600; color: #0f172a; max-width: 250px; white-space: normal;">
+                                @item.BAUnitName
+                                @if (item.IsDeleted)
+                                {
+                                    <br>
+                                    <span class="deleted-badge no-highlight"><i data-lucide="trash-2" style="width:10px; height:10px;"></i> Архивная запись</span>
+                                }
+                            </td>
+                            <td style="color: #1e40af; font-weight: 500;">@item.SubjectName</td>
+                            <td>
+                                <div style="display:flex; flex-direction:column; gap: 4px;">
+                                    <span class="badge @(item.TypeStr.Contains("Собственность") ? "badge-success" : "badge")" style="width: fit-content;">@item.TypeStr</span>
+                                    <span style="font-size: 0.8rem; color: #475569;">
+                                        Установленная пропорция: <b>@item.ShareNumerator / @item.ShareDenominator</b>
+                                    </span>
+                                </div>
+                            </td>
+                            <td style="text-align: right;">
+                                <div class="actions-container">
+                                    @if (isHistorical)
+                                    {
+                                        <span class="badge no-highlight" style="background: #e2e8f0; color: #475569;">Режим чтения</span>
+                                    }
+                                    else if (!item.IsDeleted)
+                                    {
+                                        @if (!item.EndDate.HasValue)
+                                        {
+                                            <button class="btn-outline" style="padding: 6px 12px; font-size: 0.8rem; border-color: #dc2626; color: #dc2626;" onclick="openTerminateModal('@item.BAUnitId', '@item.Id')"><i data-lucide="ban" style="width: 14px;"></i> Прекратить</button>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge no-highlight" style="background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; white-space: normal;">Прекращено @item.EndDate.Value.ToString("dd.MM.yyyy")</span>
+                                        }
+                                        @if (canDelete)
+                                        {
+                                            <form method="post" asp-page-handler="DeleteData" style="display:inline; margin:0; padding:0;" onsubmit="return confirm('Поместить зарегистрированное право в архивный фонд?');">
+                                                <input type="hidden" name="id" value="@item.Id" /><input type="hidden" name="entityType" value="RRR" /><input type="hidden" name="Tab" value="rrr" />
+                                                <button type="submit" class="btn-icon danger"><i data-lucide="trash-2"></i></button>
+                                            </form>
+                                        }
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+                else if (Model.Tab == "sources")
+                {
+                    @foreach (var item in Model.Sources)
+                    {
+                        <tr class="@(item.IsDeleted ? "deleted-row" : "")">
+                            <td>
+                                <div class="td-flex">
+                                    <div class="td-icon" style="background: #f3e8ff; color: #6b21a8;"><i data-lucide="file-text"></i></div>
+                                    <div class="td-title">
+                                        @item.TypeStr
+                                        @if (item.IsDeleted)
+                                        {
+                                            <span class="deleted-badge no-highlight"><i data-lucide="trash-2" style="width:10px; height:10px;"></i> Архивная запись</span>
+                                        }
+                                    </div>
+                                </div>
+                            </td>
+                            <td style="font-family: monospace; font-weight: 600;">№ @item.DocumentNumber</td>
+                            <td>@item.RecordDate.ToString("dd.MM.yyyy")</td>
+                            <td style="text-align: right;">
+                                <div class="actions-container">
+                                    @if (!string.IsNullOrEmpty(item.ContentUrl))
+                                    {
+                                        <a href="@item.ContentUrl" target="_blank" class="btn-outline" style="padding: 6px 12px; font-size: 0.8rem; text-decoration: none;"><i data-lucide="external-link" style="width: 14px;"></i> Материалы</a>
+                                    }
+                                    @if (isHistorical)
+                                    {
+                                        <span class="badge no-highlight" style="background: #e2e8f0; color: #475569;">Режим чтения</span>
+                                    }
+                                    else if (!item.IsDeleted && canDelete)
+                                    {
+                                        <form method="post" asp-page-handler="DeleteData" style="display:inline; margin:0; padding:0;" onsubmit="return confirm('Переместить документ-основание в архив?');">
+                                            <input type="hidden" name="id" value="@item.Id" /><input type="hidden" name="entityType" value="Source" /><input type="hidden" name="Tab" value="sources" />
+                                            <button type="submit" class="btn-icon danger"><i data-lucide="trash-2"></i></button>
+                                        </form>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div style="padding: 16px 24px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; flex-wrap: wrap; gap: 12px;">
+        <div style="font-size: 0.85rem; color: #64748b;">
+            @if (Model.TotalItems > 0)
+            {
+                <span>Отображение записей @(((Model.PageNumber - 1) * Model.PageSize) + 1) - @(Math.Min(Model.PageNumber * Model.PageSize, Model.TotalItems)) из общего числа @Model.TotalItems</span>
+            }
+            else
+            {
+                <span>Информация отсутствует в текущем срезе</span>
+            }
+        </div>
+        <div style="display: flex; gap: 8px;">
+            @if (Model.PageNumber > 1)
+            {
+                <a href="/Registry?tab=@Model.Tab&PageNumber=@(Model.PageNumber - 1)@(isHistorical ? "&AsOfDate=" + Model.AsOfDate.Value.ToString("yyyy-MM-ddTHH:mm") : "")" class="btn-outline" style="padding: 6px 12px; font-size: 0.8rem; text-decoration: none;">Предыдущая страница</a>
+            }
+            @if (Model.PageNumber < Model.TotalPages)
+            {
+                <a href="/Registry?tab=@Model.Tab&PageNumber=@(Model.PageNumber + 1)@(isHistorical ? "&AsOfDate=" + Model.AsOfDate.Value.ToString("yyyy-MM-ddTHH:mm") : "")" class="btn-outline" style="padding: 6px 12px; font-size: 0.8rem; text-decoration: none;">Следующая страница</a>
+            }
+        </div>
+    </div>
+</div>
+
+<div id="modal-wizard" class="modal-overlay hidden" style="z-index: 1000;">
+    <div class="modal-container" style="max-width: 650px;">
+        <form method="post" id="wizard-form" asp-page-handler="CreateRRR">
+            <input type="hidden" name="Tab" value="rrr" />
+            <div class="modal-header" style="background: #0f172a; color: white;">
+                <h3 style="display: flex; align-items: center; gap: 8px;"><i data-lucide="scale" style="color: #10b981;"></i> Ассистент регистрации прав</h3>
+                <button type="button" class="btn-icon" onclick="closeModal('modal-wizard')" style="color: white;"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body" style="background: #f8fafc;">
+                <div class="wizard-nav">
+                    <div class="wizard-step active" id="step-nav-1"><div class="wizard-circle">1</div><div class="wizard-label">Имущественный объект</div></div>
+                    <div class="wizard-step" id="step-nav-2"><div class="wizard-circle">2</div><div class="wizard-label">Правообладатель</div></div>
+                    <div class="wizard-step" id="step-nav-3"><div class="wizard-circle">3</div><div class="wizard-label">Параметры и пропорции</div></div>
+                </div>
+                <div class="wizard-content active" id="step-content-1">
+                    <div style="background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: var(--shadow-soft);">
+                        @RenderLookup("Объект недвижимости", "RRRInput.BAUnitId", "wiz-baunit", "/api/registry/lookup/baunits", "Системный справочник: Объекты недвижимости")
+                        @RenderLookup("Документальное основание возникновения права", "RRRInput.SourceId", "wiz-source", "/api/registry/lookup/sources", "Системный справочник: Документация")
+                    </div>
+                </div>
+                <div class="wizard-content" id="step-content-2">
+                    <div style="background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: var(--shadow-soft);">
+                        <div class="form-group">
+                            <label class="form-label">Характер правообладания</label>
+                            <div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="radio" asp-for="RRRSubjectType" value="Individual" checked onchange="toggleSubjectType('Individual')" style="accent-color: #10b981; width: 16px; height: 16px;"> Единоличный субъект
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="radio" asp-for="RRRSubjectType" value="Group" onchange="toggleSubjectType('Group')" style="accent-color: #10b981; width: 16px; height: 16px;"> Совместная собственность
+                                </label>
+                            </div>
+                        </div>
+                        @RenderLookup("Физическое или Юридическое лицо", "RRRInput.PartyId", "wiz-party", "/api/registry/lookup/parties", "Системный справочник: Правообладатели", "subject-individual")
+                        @RenderLookup("Зарегистрированное объединение лиц", "RRRInput.PartyGroupId", "wiz-group", "/api/registry/lookup/partygroups", "Системный справочник: Совместные объединения", "subject-group", "hidden")
+                    </div>
+                </div>
+                <div class="wizard-content" id="step-content-3">
+                    <div style="background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: var(--shadow-soft);">
+                        <div class="form-group">
+                            <label class="form-label">Категория регистрируемого права или ограничения</label>
+                            <select asp-for="RRRInput.Type" class="form-control" style="background: white;" required>
+                                <option value="Ownership">Право собственности</option>
+                                <option value="Lease">Право аренды</option>
+                                <option value="Mortgage">Залоговое обременение</option>
+                                <option value="Servitude">Ограничение использования</option>
+                                <option value="Usufruct">Право узуфрукта</option>
+                            </select>
+                        </div>
+                        <label class="form-label">Размер установленной доли</label>
+                        <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 20px;">
+                            <div style="flex: 1;"><input asp-for="RRRInput.ShareNumerator" class="form-control" type="number" min="1" required value="1" style="background: white;" placeholder=" " /></div>
+                            <div style="font-size: 1.5rem; color: #cbd5e1; font-weight: 300;">/</div>
+                            <div style="flex: 1;"><input asp-for="RRRInput.ShareDenominator" class="form-control" type="number" min="1" required value="1" style="background: white;" placeholder=" " /></div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Дата официального внесения записи</label>
+                            <input asp-for="RRRInput.StartDate" class="form-control" type="date" required value="@DateTime.UtcNow.ToString("yyyy-MM-dd")" style="background: white;" placeholder=" " />
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-outline" id="wiz-btn-prev" onclick="wizardPrev()" style="display: none;">Вернуться назад</button>
+                <button type="button" class="btn-primary" id="wiz-btn-next" onclick="wizardNext()">Следующий этап <i data-lucide="arrow-right" style="margin-left: 8px; margin-right: 0;"></i></button>
+                <button type="submit" class="btn-primary" id="wiz-btn-submit" style="display: none; background: #10b981; box-shadow: 0 4px 12px rgba(16,185,129,0.3);"><i data-lucide="check-circle" style="margin-right: 8px;"></i> Завершить и сохранить</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="modal-lookup" class="modal-overlay hidden" style="z-index: 1050;">
+    <div class="modal-container" style="max-width: 650px; padding: 0; min-height: 450px; display: flex; flex-direction: column;">
+        <div class="modal-header" style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 16px 20px;">
+            <h3 id="lookup-title" style="margin: 0; color: #0f172a; display: flex; align-items: center; gap: 8px; font-size: 1.1rem;"><i data-lucide="database"></i> Системный справочник</h3>
+            <button type="button" class="btn-icon" onclick="closeDictionary()"><i data-lucide="x"></i></button>
+        </div>
+        <div style="padding: 16px 20px; border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+            <div class="lookup-wrapper" style="background: white;">
+                <i data-lucide="search" style="margin-left: 12px; color: #94a3b8; width: 18px;"></i>
+                <input type="text" id="lookup-search" class="lookup-input" placeholder=" " onkeyup="delaySearchDictionary()" autocomplete="off" />
+            </div>
+        </div>
+        <div style="flex: 1; max-height: 400px; min-height: 250px; overflow-y: auto; background: white; position: relative;">
+            <table class="lookup-table" style="width: 100%;">
+                <thead><tr><th style="font-weight: 600; text-transform: uppercase; padding: 12px 20px; border-bottom: 1px solid #e2e8f0;">Идентификатор и информация из базы данных</th></tr></thead>
+                <tbody id="lookup-results"></tbody>
+            </table>
+            <div id="lookup-loader" style="display: none; padding: 40px 20px; text-align: center; color: #64748b;">
+                <i data-lucide="loader" class="animate-spin" style="margin: 0 auto; width: 28px; height: 28px;"></i>
+                <div style="margin-top: 12px; font-size: 0.95rem;">Выполнение запроса к серверу...</div>
+            </div>
+            <div id="lookup-empty" style="display: none; padding: 40px 20px; text-align: center; color: #94a3b8;">
+                <i data-lucide="inbox" style="margin: 0 auto 12px auto; width: 36px; height: 36px; opacity: 0.5;"></i><br>
+                <span id="lookup-empty-text">Информация по вашему запросу не найдена. Измените критерии поиска.</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="modal-baunit" class="modal-overlay hidden" style="z-index: 1000;">
+    <div class="modal-container">
+        <form method="post" asp-page-handler="CreateBAUnit">
+            <input type="hidden" name="Tab" value="baunits" />
+            <div class="modal-header"><h3>Внесение объекта недвижимости</h3><button type="button" class="btn-icon" onclick="closeModal('modal-baunit')"><i data-lucide="x"></i></button></div>
+            <div class="modal-body">
+                <div class="form-group"><label class="form-label">Описательное наименование объекта</label><input asp-for="BAUnitInput.Name" class="form-control" required placeholder=" " /></div>
+                <div class="form-group">
+                    <label class="form-label">Категория регистрируемого имущества</label>
+                    <select asp-for="BAUnitInput.Type" class="form-control" required>
+                        <option value="BasicPropertyUnit">Базовый объект недвижимости</option>
+                        <option value="LeasedUnit">Объект аренды</option>
+                        <option value="RightOfUseUnit">Объект права пользования</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn-outline" onclick="closeModal('modal-baunit')">Отменить</button><button type="submit" class="btn-primary">Внести информацию</button></div>
+        </form>
+    </div>
+</div>
+
+<div id="modal-party" class="modal-overlay hidden" style="z-index: 1000;">
+    <div class="modal-container">
+        <form method="post" asp-page-handler="CreateParty">
+            <input type="hidden" name="Tab" value="parties" />
+            <div class="modal-header"><h3>Регистрация правообладателя</h3><button type="button" class="btn-icon" onclick="closeModal('modal-party')"><i data-lucide="x"></i></button></div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Юридическая категория субъекта</label>
+                    <select asp-for="PartyInput.Type" class="form-control" required>
+                        <option value="NaturalPerson">Физическое лицо</option>
+                        <option value="NonNaturalPerson">Юридическое лицо</option>
+                        <option value="Municipality">Муниципальное образование</option>
+                        <option value="State">Государственный субъект</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Тип государственного регистрационного номера</label>
+                    <select asp-for="PartyInput.GovRegNumType" id="gov-reg-type" class="form-control" required>
+                        <option value="СНИЛС">СНИЛС</option>
+                        <option value="ИНН_ФЛ">ИНН (Физическое лицо)</option>
+                        <option value="ИНН_ЮЛ">ИНН (Юридическое лицо)</option>
+                        <option value="ОГРН">ОГРН</option>
+                        <option value="ОГРНИП">ОГРНИП</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Государственный регистрационный номер</label>
+                    <input asp-for="PartyInput.ExtId" id="gov-reg-input" class="form-control" required placeholder=" " />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Удостоверяющая информация (ФИО/Наименование)</label>
+                    <input asp-for="PartyInput.Name" class="form-control" required placeholder=" " />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Тип контактных данных</label>
+                    <select asp-for="PartyInput.ContactType" id="contact-type" class="form-control" required>
+                        <option value="Телефон">Мобильный/Стационарный телефон</option>
+                        <option value="Адрес">Почтовый адрес</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Сведения для обеспечения обратной связи</label>
+                    <input asp-for="PartyInput.ContactInfo" id="contact-input" class="form-control" required placeholder=" " />
+                </div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn-outline" onclick="closeModal('modal-party')">Отменить</button><button type="submit" class="btn-primary">Зафиксировать</button></div>
+        </form>
+    </div>
+</div>
+
+<div id="modal-partygroups" class="modal-overlay hidden" style="z-index: 1000;">
+    <div class="modal-container">
+        <form method="post" asp-page-handler="CreatePartyGroup">
+            <input type="hidden" name="Tab" value="partygroups" />
+            <div class="modal-header"><h3>Формирование совместной собственности</h3><button type="button" class="btn-icon" onclick="closeModal('modal-partygroups')"><i data-lucide="x"></i></button></div>
+            <div class="modal-body"><div class="form-group"><label class="form-label">Идентификатор группы правообладателей</label><input asp-for="PartyGroupInput.Name" class="form-control" required placeholder=" " /></div></div>
+            <div class="modal-footer"><button type="button" class="btn-outline" onclick="closeModal('modal-partygroups')">Отменить</button><button type="submit" class="btn-primary">Сохранить</button></div>
+        </form>
+    </div>
+</div>
+
+<div id="modal-sources" class="modal-overlay hidden" style="z-index: 1000;">
+    <div class="modal-container">
+        <form method="post" asp-page-handler="CreateSource" enctype="multipart/form-data">
+            <input type="hidden" name="Tab" value="sources" />
+            <div class="modal-header"><h3>Внесение документальной базы</h3><button type="button" class="btn-icon" onclick="closeModal('modal-sources')"><i data-lucide="x"></i></button></div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Классификация документа</label>
+                    <select asp-for="SourceInput.Type" class="form-control" required>
+                        <option value="SaleContract">Договор купли-продажи</option>
+                        <option value="CourtDecision">Судебное постановление</option>
+                        <option value="InheritanceCertificate">Свидетельство о наследстве</option>
+                        <option value="AdministrativeAct">Государственный акт</option>
+                    </select>
+                </div>
+                <div class="form-group"><label class="form-label">Системный или регистрационный номер</label><input asp-for="SourceInput.DocumentNumber" class="form-control" required placeholder=" " /></div>
+                <div class="form-group"><label class="form-label">Дата официального выпуска</label><input asp-for="SourceInput.RecordDate" type="date" class="form-control" value="@DateTime.UtcNow.ToString("yyyy-MM-dd")" required placeholder=" " /></div>
+                <div class="form-group"><label class="form-label">Прикрепляемые материалы (Скан-копия)</label><input type="file" asp-for="UploadedFile" class="form-control" style="padding-left:16px;" /></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn-outline" onclick="closeModal('modal-sources')">Отменить</button><button type="submit" class="btn-primary">Передать в архив</button></div>
+        </form>
+    </div>
+</div>
+
+<div id="modal-rrr-terminate" class="modal-overlay hidden" style="z-index: 1000;">
+    <div class="modal-container">
+        <form method="post" asp-page-handler="TerminateRRR">
+            <input type="hidden" name="Tab" value="rrr" />
+            <input type="hidden" asp-for="TerminateRRRInput.BAUnitId" id="terminate-baunit-id" />
+            <input type="hidden" asp-for="TerminateRRRInput.RRRId" id="terminate-rrr-id" />
+            <div class="modal-header"><h3>Процедура прекращения правоотношения</h3><button type="button" class="btn-icon" onclick="closeModal('modal-rrr-terminate')"><i data-lucide="x"></i></button></div>
+            <div class="modal-body">
+                <div class="alert alert-error" style="margin-bottom: 16px;">
+                    <i data-lucide="alert-triangle" style="width: 16px; margin-right: 8px;"></i> Запись будет отмечена как закрытая с момента указанной даты. Физического удаления из базы не произойдет.
+                </div>
+                <div class="form-group"><label class="form-label">Дата завершения правовых оснований</label><input asp-for="TerminateRRRInput.EndDate" type="date" class="form-control" required value="@DateTime.UtcNow.ToString("yyyy-MM-dd")" placeholder=" " /></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn-outline" onclick="closeModal('modal-rrr-terminate')">Отменить</button><button type="submit" class="btn-primary" style="background:#dc2626;">Инициировать прекращение</button></div>
+        </form>
+    </div>
+</div>
+
+<div id="modal-partygroup-member" class="modal-overlay hidden" style="z-index: 1000;">
+    <div class="modal-container">
+        <form method="post" asp-page-handler="AddPartyToGroup">
+            <input type="hidden" name="Tab" value="partygroups" />
+            <input type="hidden" asp-for="AddPartyToGroupInput.PartyGroupId" id="add-member-group-id" />
+            <div class="modal-header"><h3>Включение участника в совместную собственность</h3><button type="button" class="btn-icon" onclick="closeModal('modal-partygroup-member')"><i data-lucide="x"></i></button></div>
+            <div class="modal-body">
+                @RenderLookup("Идентификация субъекта", "AddPartyToGroupInput.PartyId", "wiz-member", "/api/registry/lookup/parties", "Системный справочник: Правообладатели")
+                <label class="form-label">Пропорция участия в совместном праве</label>
+                <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 20px;">
+                    <div style="flex: 1;"><input asp-for="AddPartyToGroupInput.ShareNumerator" class="form-control" type="number" min="1" required value="1" placeholder=" " /></div>
+                    <div style="font-size: 1.5rem; color: #cbd5e1;">/</div>
+                    <div style="flex: 1;"><input asp-for="AddPartyToGroupInput.ShareDenominator" class="form-control" type="number" min="1" required value="1" placeholder=" " /></div>
+                </div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn-outline" onclick="closeModal('modal-partygroup-member')">Отменить</button><button type="submit" class="btn-primary">Зарегистрировать</button></div>
+        </form>
+    </div>
+</div>
+
+<div id="modal-baunit-spatial" class="modal-overlay hidden" style="z-index: 1000;">
+    <div class="modal-container">
+        <form method="post" asp-page-handler="AddSpatialUnitToBAUnit">
+            <input type="hidden" name="Tab" value="baunits" />
+            <input type="hidden" asp-for="AddSpatialUnitInput.BAUnitId" id="link-spatial-baunit-id" />
+            <div class="modal-header"><h3>Установка связи с пространственными координатами</h3><button type="button" class="btn-icon" onclick="closeModal('modal-baunit-spatial')"><i data-lucide="x"></i></button></div>
+            <div class="modal-body">
+                @RenderLookup("Выбор пространственного контура", "AddSpatialUnitInput.SpatialUnitId", "wiz-spatial", "/api/registry/lookup/spatialunits", "Системный справочник: Пространственные контуры")
+            </div>
+            <div class="modal-footer"><button type="button" class="btn-outline" onclick="closeModal('modal-baunit-spatial')">Отменить</button><button type="submit" class="btn-primary">Зафиксировать привязку</button></div>
+        </form>
+    </div>
+</div>
+
+<form id="edit-party-form" method="post" asp-page-handler="UpdatePartyContact" class="hidden">
+    <input type="hidden" name="id" id="edit-party-id" />
+    <input type="hidden" name="contactInfo" id="edit-party-contact" />
+    <input type="hidden" name="Tab" value="parties" />
+</form>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.inputmask/5.0.8/jquery.inputmask.min.js"></script>
+<script src="~/js/registry-masks.js" asp-append-version="true"></script>
+<script src="~/js/inspection/registry-integration.js" asp-append-version="true"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        if (typeof TableHighlighter !== 'undefined') {
+            new TableHighlighter('#live-search-input', '#registry-main-table');
+        }
+
+        document.getElementById('live-search-input').addEventListener('input', function() {
+            const term = this.value.toLowerCase();
+            const rows = document.querySelectorAll('#registry-main-table tbody tr');
+
+            rows.forEach(row => {
+                const text = row.textContent || row.innerText;
+                if (text.toLowerCase().indexOf(term) > -1) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+    });
+
+    let dictTargetId = '';
+    let dictTargetText = '';
+    let dictUrl = '';
+    let dictSearchTimer = null;
+
+    function openDictionary(url, targetId, targetText, title) {
+        dictUrl = url;
+        dictTargetId = targetId;
+        dictTargetText = targetText;
+        document.getElementById('lookup-title').innerHTML = `<i data-lucide="database" style="margin-right:8px; color:#10b981;"></i> ${title}`;
+        document.getElementById('lookup-search').value = '';
+        document.getElementById('modal-lookup').classList.remove('hidden');
+        lucide.createIcons();
+        setTimeout(() => document.getElementById('lookup-search').focus(), 100);
+        executeDictionarySearch('');
+    }
+
+    function closeDictionary() {
+        document.getElementById('modal-lookup').classList.add('hidden');
+    }
+
+    function delaySearchDictionary() {
+        clearTimeout(dictSearchTimer);
+        dictSearchTimer = setTimeout(() => {
+            executeDictionarySearch(document.getElementById('lookup-search').value);
+        }, 300);
+    }
+
+    async function executeDictionarySearch(query) {
+        const loader = document.getElementById('lookup-loader');
+        const empty = document.getElementById('lookup-empty');
+        const tbody = document.getElementById('lookup-results');
+        loader.style.display = 'block';
+        empty.style.display = 'none';
+        tbody.innerHTML = '';
+        try {
+            const fetchUrl = dictUrl + '?q=' + encodeURIComponent(query || '');
+            const res = await fetch(fetchUrl);
+            if (!res.ok) { const errText = await res.text(); throw new Error(`Код состояния ${res.status}: ${errText}`); }
+            const data = await res.json();
+            loader.style.display = 'none';
+            if (!data || data.length === 0) {
+                empty.style.display = 'block';
+                document.getElementById('lookup-empty-text').innerText = "Информация по вашему запросу не найдена. Измените критерии поиска.";
+                return;
+            }
+            data.forEach(item => {
+                const rawText = item.text ? item.text.toString() : "Идентификатор отсутствует";
+                const safeText = rawText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+                const row = document.createElement('tr');
+                row.onclick = () => selectDictionaryItem(item.id, rawText);
+                row.style.cursor = 'pointer';
+                row.innerHTML = `<td style="padding: 12px 20px; border-bottom: 1px solid #f1f5f9;"><div style="display:flex; align-items:center;"><i data-lucide="file-check" style="width:16px; margin-right:12px; color:#94a3b8; flex-shrink:0;"></i> <span style="white-space: pre-wrap; font-size: 0.9rem;">${safeText}</span></div></td>`;
+                tbody.appendChild(row);
+            });
+            lucide.createIcons();
+        } catch (e) {
+            loader.style.display = 'none';
+            empty.style.display = 'block';
+            document.getElementById('lookup-empty-text').innerHTML = `<span style='color:#ef4444;'>Произошел системный сбой при обращении к серверу:<br>${e.message}</span>`;
+        }
+    }
+
+    function selectDictionaryItem(id, text) {
+        const inputId = document.getElementById(dictTargetId);
+        const inputText = document.getElementById(dictTargetText);
+        inputId.value = id;
+        inputText.value = text;
+        inputText.setCustomValidity('');
+        closeDictionary();
+    }
+
+    let currentWizardStep = 1;
+    const totalWizardSteps = 3;
+
+    function openWizardModal() {
+        currentWizardStep = 1;
+        updateWizardUI();
+        document.getElementById('modal-wizard').classList.remove('hidden');
+    }
+
+    function wizardNext() {
+        let stepContent = document.getElementById('step-content-' + currentWizardStep);
+        if (currentWizardStep === 1) {
+            if (!document.getElementById('wiz-baunit-id').value) { alert("Системное предупреждение: необходимо выбрать объект недвижимости из справочника."); return; }
+            if (!document.getElementById('wiz-source-id').value) { alert("Системное предупреждение: необходимо выбрать документальное основание из справочника."); return; }
+        }
+        else if (currentWizardStep === 2) {
+            const type = document.querySelector('input[name="RRRSubjectType"]:checked').value;
+            if (type === 'Individual' && !document.getElementById('wiz-party-id').value) { alert("Системное предупреждение: необходимо определить правообладателя через справочник."); return; }
+            if (type === 'Group' && !document.getElementById('wiz-group-id').value) { alert("Системное предупреждение: необходимо указать совместное объединение лиц из справочника."); return; }
+        }
+        let inputs = stepContent.querySelectorAll('input[required], select[required]');
+        for(let input of inputs) {
+            if (!input.value && input.type !== 'hidden') {
+                input.reportValidity();
+                return;
+            }
+        }
+        if (currentWizardStep < totalWizardSteps) {
+            currentWizardStep++;
+            updateWizardUI();
+        }
+    }
+
+    function wizardPrev() {
+        if (currentWizardStep > 1) {
+            currentWizardStep--;
+            updateWizardUI();
+        }
+    }
+
+    function updateWizardUI() {
+        for(let i=1; i<=totalWizardSteps; i++) {
+            let nav = document.getElementById('step-nav-' + i);
+            let content = document.getElementById('step-content-' + i);
+            nav.classList.remove('active', 'completed');
+            if (i < currentWizardStep) nav.classList.add('completed');
+            else if (i === currentWizardStep) nav.classList.add('active');
+            content.classList.remove('active');
+            if (i === currentWizardStep) content.classList.add('active');
+        }
+        document.getElementById('wiz-btn-prev').style.display = currentWizardStep > 1 ? 'inline-block' : 'none';
+        document.getElementById('wiz-btn-next').style.display = currentWizardStep < totalWizardSteps ? 'inline-flex' : 'none';
+        document.getElementById('wiz-btn-submit').style.display = currentWizardStep === totalWizardSteps ? 'inline-flex' : 'none';
+    }
+
+    function toggleSubjectType(type) {
+        if (type === 'Individual') {
+            document.getElementById('subject-individual').classList.remove('hidden');
+            document.getElementById('subject-group').classList.add('hidden');
+            document.getElementById('wiz-group-id').value = '';
+            document.getElementById('wiz-group-text').value = '';
+        } else {
+            document.getElementById('subject-individual').classList.add('hidden');
+            document.getElementById('wiz-party-id').value = '';
+            document.getElementById('wiz-party-text').value = '';
+            document.getElementById('subject-group').classList.remove('hidden');
+        }
+    }
+
+    function openCreateModal() {
+        var tab = '@Model.Tab';
+        if (tab === 'baunits') document.getElementById('modal-baunit').classList.remove('hidden');
+        else if (tab === 'parties') document.getElementById('modal-party').classList.remove('hidden');
+        else if (tab === 'partygroups') document.getElementById('modal-partygroups').classList.remove('hidden');
+        else if (tab === 'sources') document.getElementById('modal-sources').classList.remove('hidden');
+        else if (tab === 'rrr') openWizardModal();
+    }
+
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+    function openTerminateModal(baUnitId, rrrId) {
+        document.getElementById('terminate-baunit-id').value = baUnitId;
+        document.getElementById('terminate-rrr-id').value = rrrId;
+        document.getElementById('modal-rrr-terminate').classList.remove('hidden');
+    }
+
+    function openAddMemberModal(groupId) {
+        document.getElementById('add-member-group-id').value = groupId;
+        document.getElementById('modal-partygroup-member').classList.remove('hidden');
+    }
+
+    function openLinkSpatialModal(baUnitId) {
+        document.getElementById('link-spatial-baunit-id').value = baUnitId;
+        document.getElementById('modal-baunit-spatial').classList.remove('hidden');
+    }
+
+    function editParty(id, currentContact) {
+        var newContact = prompt("Внесите актуализированные данные для связи (почтовый адрес, телефонные контакты):", currentContact);
+        if (newContact !== null && newContact !== currentContact && newContact.trim() !== "") {
+            document.getElementById('edit-party-id').value = id;
+            document.getElementById('edit-party-contact').value = newContact;
+            document.getElementById('edit-party-form').submit();
+        }
+    }
+</script>

@@ -1,0 +1,138 @@
+﻿@page
+@model CadastreInvent.Api.Pages.IndexModel
+@{
+    ViewData["Title"] = "Аналитический центр";
+    ViewData["ActivePage"] = "Dashboard";
+}
+
+<link rel="stylesheet" href="~/css/dashboard.css" asp-append-version="true" />
+
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+    <div>
+        <h1 class="page-title">@Model.CurrentSettings.CompanyName</h1>
+        <p class="page-subtitle">@Model.CurrentSettings.SystemName &mdash; @Model.CurrentSettings.Description</p>
+    </div>
+
+    @if (Model.IsAdministrator)
+    {
+        <div style="flex-shrink: 0;">
+            <button class="btn-outline" onclick="document.getElementById('modal-settings').classList.remove('hidden')">
+                <i data-lucide="settings-2"></i> Кастомизация платформы
+            </button>
+        </div>
+    }
+</div>
+
+@if (!string.IsNullOrEmpty(Model.StatusMessage))
+{
+    <div class="alert alert-success">
+        <i data-lucide="check-circle" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 8px;"></i>
+        <span style="vertical-align: middle;">@Model.StatusMessage</span>
+    </div>
+}
+
+<div class="dashboard-grid">
+    <div class="stat-card">
+        <div class="stat-icon" style="background: #e0f2fe; color: #0ea5e9;"><i data-lucide="home"></i></div>
+        <div class="stat-info">
+            <div class="stat-label">Имущественные объекты</div>
+            <div class="stat-value">@Model.TotalBAUnits.ToString("N0")</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon" style="background: #dcfce7; color: #10b981;"><i data-lucide="map"></i></div>
+        <div class="stat-info">
+            <div class="stat-label">Физические контуры</div>
+            <div class="stat-value">@Model.TotalSpatialUnits.ToString("N0")</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon" style="background: #fef9c3; color: #eab308;"><i data-lucide="users"></i></div>
+        <div class="stat-info">
+            <div class="stat-label">Правообладатели</div>
+            <div class="stat-value">@Model.TotalParties.ToString("N0")</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon" style="background: #f3e8ff; color: #8b5cf6;"><i data-lucide="scale"></i></div>
+        <div class="stat-info">
+            <div class="stat-label">Зарегистрированные права</div>
+            <div class="stat-value">@Model.TotalRrrs.ToString("N0")</div>
+        </div>
+    </div>
+</div>
+
+<div class="panel-card" style="margin-bottom: 32px;">
+    <div class="panel-title"><i data-lucide="activity" style="color: #f59e0b;"></i> Журнал последних транзакций</div>
+    <div style="overflow-x: auto;">
+        <table class="activity-table">
+            <thead>
+                <tr>
+                    <th>Категория транзакции</th>
+                    <th>Затронутая сущность</th>
+                    <th>Идентификационный маркер</th>
+                    <th style="text-align: right;">Временная метка (UTC)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var activity in Model.RecentActivities)
+                {
+                    <tr>
+                        <td style="font-weight: 500; color: #0f172a;">@activity.ActionType</td>
+                        <td>@activity.EntityType</td>
+                        <td style="font-family: monospace; font-size: 0.85rem; color: #64748b;">@activity.Id</td>
+                        <td style="text-align: right;">@activity.Timestamp.ToString("dd.MM.yyyy HH:mm:ss")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@if (Model.IsAdministrator)
+{
+    <div id="modal-settings" class="modal-overlay hidden">
+        <div class="modal-container" style="max-width: 600px;">
+            <form method="post" asp-page-handler="SaveSettings" enctype="multipart/form-data">
+                <div class="modal-header">
+                    <h3>Параметры персонализации системы</h3>
+                    <button type="button" class="btn-icon" onclick="document.getElementById('modal-settings').classList.add('hidden')"><i data-lucide="x"></i></button>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-panel">
+                        <div style="display: flex; gap: 20px; align-items: flex-start;">
+                            @if (!string.IsNullOrEmpty(Model.CurrentSettings.LogoUrl))
+                            {
+                                <img src="@Model.CurrentSettings.LogoUrl" class="logo-preview" alt="Логотип" />
+                            }
+                            else
+                            {
+                                <div class="logo-preview" style="display: flex; align-items: center; justify-content: center; color: #cbd5e1;"><i data-lucide="image" style="width: 32px; height: 32px;"></i></div>
+                            }
+                            <div style="flex: 1;">
+                                <label class="form-label">Загрузка графического идентификатора (Логотип)</label>
+                                <input type="file" asp-for="LogoUpload" class="form-control" accept="image/png, image/jpeg, image/svg+xml" style="padding-left: 12px;" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Наименование организации</label>
+                        <input asp-for="SettingsInput.CompanyName" class="form-control" required />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Наименование информационного комплекса</label>
+                        <input asp-for="SettingsInput.SystemName" class="form-control" required />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Описательная спецификация платформы</label>
+                        <textarea asp-for="SettingsInput.Description" class="form-control" rows="3" required style="resize: none;"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-outline" onclick="document.getElementById('modal-settings').classList.add('hidden')">Отменить</button>
+                    <button type="submit" class="btn-primary">Применить конфигурацию</button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
