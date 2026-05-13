@@ -2,7 +2,7 @@
 @model CadastreInvent.Api.Pages.RegistryModel
 @using CadastreInvent.Shared.Application.Auth
 @{
-    ViewData["Title"] = "Единый реестр недвижимости";
+    ViewData["Title"] = "Реестр недвижимости";
     ViewData["ActivePage"] = "Registry";
     bool canDelete = User.HasClaim(c => c.Type == "Permission" && c.Value == Permissions.DataDelete);
     bool canManageFieldTasks = User.HasClaim(c => c.Type == "Permission" && c.Value == Permissions.ManageFieldTasks);
